@@ -1,0 +1,31 @@
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: cognis-dynamodb
+    ports:
+      - "8001:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:latest
+    container_name: cognis-elasticmq
+    ports:
+      - "9324:9324"
+      - "9325:9325"
+    volumes:
+      - ./elasticmq.conf:/opt/elasticmq.conf
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cognis-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.local
+    depends_on:
+      - dynamodb-local
+      - elasticmq
+    volumes:
+      - ./backend:/app

@@ -9,6 +9,11 @@ on:
     branches: [main]
     paths:
       - 'runbooks/**'
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Space-separated runbook file paths to promote (e.g. runbooks/foo.md runbooks/bar.md)'
+        required: true
 
 permissions:
   id-token: write
@@ -64,3 +69,27 @@ jobs:
         run: |
           echo "## Retrieval Evaluation Results" >> $GITHUB_STEP_SUMMARY
           cat evaluation_report.json >> $GITHUB_STEP_SUMMARY
+
+  promote-prod:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      ENVIRONMENT: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-1
+
+      - name: Ingest all runbooks into prod
+        run: python scripts/ingest_corpus.py --all
