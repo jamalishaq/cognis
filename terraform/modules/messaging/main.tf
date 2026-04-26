@@ -1,6 +1,3 @@
-data "aws_region" "current" {}
-data "aws_caller_identity" "current" {}
-
 # ─── SQS Queues ────────────────────────────────────────────────────────────────
 
 resource "aws_sqs_queue" "notification_dlq" {
