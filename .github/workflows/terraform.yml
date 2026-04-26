@@ -1,12 +1,17 @@
 name: Terraform
 
 on:
+on:
   pull_request:
     branches: [main]
-    paths: [terraform/**]
+    paths:
+      - 'terraform/**'          
+      - '!terraform/bootstrap/**'
   push:
     branches: [main]
-    paths: [terraform/**]
+    paths:
+      - 'terraform/**'
+      - '!terraform/bootstrap/**'
   workflow_dispatch:
 
 permissions:
@@ -96,6 +101,9 @@ jobs:
 
       - name: terraform apply
         run: terraform apply tfplan
+
+      - name: Show outputs
+        run: terraform output >> $GITHUB_STEP_SUMMARY
 
   apply-prod:
     runs-on: ubuntu-latest
