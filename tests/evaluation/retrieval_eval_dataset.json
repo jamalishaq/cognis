@@ -1,0 +1,314 @@
+{
+  "corpus_chunks": [
+    {
+      "chunk_id": "eval-chunk-001",
+      "source_file": "runbooks/payments-service.md",
+      "text": "## Payments Service — DB Connection Pool Exhaustion\n\nWhen payments-service reports elevated 5xx error rates after a deploy, the primary cause is DB connection pool exhaustion. Each rolling deploy resets in-flight connections, causing temporary pool starvation. Immediate action: increase APP_DB_POOL_MAX (default 10) via environment variable and trigger a rolling redeploy. Monitor pg_stat_activity — idle connections should drop below max_connections within 2 minutes of the redeploy completing."
+    },
+    {
+      "chunk_id": "eval-chunk-002",
+      "source_file": "runbooks/database-connection-pool.md",
+      "text": "## Database Connection Pool Sizing and Configuration\n\nConnection pool size is controlled by APP_DB_POOL_MAX (maximum open connections) and APP_DB_POOL_MIN (minimum idle connections). Under high concurrency, an exhausted pool surfaces as connection timeout errors manifesting as HTTP 500 and 503 responses. Rule of thumb: APP_DB_POOL_MAX = (2 × CPU cores) + effective spindle count. For RDS db.t3.medium with 2 vCPUs, a safe starting value is 10. Increase incrementally — raising too high strains the RDS instance's max_connections limit."
+    },
+    {
+      "chunk_id": "eval-chunk-003",
+      "source_file": "runbooks/database-connection-pool.md",
+      "text": "## Diagnosing Pool Exhaustion with pg_stat_activity\n\nQuery pg_stat_activity to identify connection state distribution. If idle connections are near max_connections, the pool is saturated. Reduce APP_DB_POOL_IDLE_TIMEOUT to reclaim idle connections faster, or scale down service replicas to reduce total pool demand. Always prefer reducing replica count over raising max_connections on shared RDS instances — raising max_connections increases memory pressure on the DB server."
+    },
+    {
+      "chunk_id": "eval-chunk-004",
+      "source_file": "runbooks/orders-service.md",
+      "text": "## Orders Service — Memory Leak Investigation\n\nOrders-service memory leaks typically manifest as a steady heap growth over 6–24 hours, eventually triggering OOM kills. Indicators: container memory utilisation exceeds 85% without a corresponding traffic spike; heap dumps show unbounded growth in the RequestCache or EventBuffer objects. Immediate mitigation: rolling restart the service to reclaim memory. Root cause fix requires heap dump analysis — attach profiler, capture heap snapshot, diff across two intervals to identify the retaining object graph."
+    },
+    {
+      "chunk_id": "eval-chunk-005",
+      "source_file": "runbooks/oom-killer.md",
+      "text": "## OOM Killer and Container Memory Limits\n\nWhen Linux OOM killer terminates a container, ECS restarts it automatically but the underlying memory leak recurs. Set a container memory hard limit in the task definition to contain blast radius. For orders-service use 1024 MiB hard limit with 768 MiB soft reservation. If memory stays above 80% after restart, reduce task concurrency and increase task count to spread load. Enable CloudWatch Container Insights for per-task memory metrics. Alerts: page when WorkingSetBytes exceeds 90% of the hard limit for 5 consecutive minutes."
+    },
+    {
+      "chunk_id": "eval-chunk-006",
+      "source_file": "runbooks/cpu-investigation.md",
+      "text": "## CPU Spike Investigation and Profiling\n\nHigh CPU in containerised services typically results from unbounded thread pool growth, N+1 query patterns, or algorithm regressions in hot paths. First step: identify which ECS task is hottest via CloudWatch ContainerInsights CPUUtilization. Attach a profiler (py-spy for Python, async-profiler for JVM) to capture a 30-second CPU flame graph without restarting. Look for hot paths accumulating more than 20% of wall time. If the cause is a query pattern, pull recent slow query logs from RDS Performance Insights."
+    },
+    {
+      "chunk_id": "eval-chunk-007",
+      "source_file": "runbooks/autoscaling.md",
+      "text": "## ECS Auto-Scaling for CPU-Bound Services\n\nConfigure ECS Service Auto Scaling with a target tracking policy on CPU utilisation. Recommended target: 60% average CPU — this leaves headroom for traffic spikes before the next scale-out event. Minimum task count should be 2 for availability; maximum depends on downstream DB connection budget. Scale-in cooldown: 300 seconds to avoid thrashing. For recommendation-service, scale-out on CPUUtilization > 70% sustained for 3 minutes. Add a step scaling policy as a backstop: add 4 tasks when CPUUtilization > 90% for 1 minute."
+    },
+    {
+      "chunk_id": "eval-chunk-008",
+      "source_file": "runbooks/session-service.md",
+      "text": "## Session Service — Redis Cache Health Runbook\n\nSession-service stores JWT session tokens in Redis with a 24-hour TTL. Cache miss rate spikes indicate either a Redis eviction storm (maxmemory policy set to allkeys-lru) or a connection pool issue preventing reads. Check: Redis INFO stats — keyspace_hits vs keyspace_misses ratio should stay above 0.95. If eviction_stats show rapid eviction, the Redis instance is undersized. Increase maxmemory or switch instance class. If misses are due to connection errors, check session-service Redis client pool size (SESSION_REDIS_POOL_SIZE)."
+    },
+    {
+      "chunk_id": "eval-chunk-009",
+      "source_file": "runbooks/redis-failover.md",
+      "text": "## Redis Primary/Replica Failover Procedure\n\nElastiCache Redis automatic failover promotes a replica to primary within 60 seconds of detecting primary failure. During failover, session-service will receive connection refused errors — the client library must have retry logic enabled (SESSION_REDIS_RETRY_ON_TIMEOUT=true). After failover completes, the old primary becomes a replica; verify replication lag is under 100ms before routing reads back to it. Force-failover command for testing: aws elasticache test-failover. Notify the team before triggering in production."
+    },
+    {
+      "chunk_id": "eval-chunk-010",
+      "source_file": "runbooks/cache-warming.md",
+      "text": "## Cache Warming After Redis Cold Start\n\nAfter a Redis flush or new node provisioning, session-service will experience 100% cache miss rate until tokens are re-populated. Warm the cache by running the cache-warmer Lambda (arn:aws:lambda:us-east-1:ACCOUNT:function:session-cache-warmer) which replays the last 6 hours of session tokens from DynamoDB into Redis. Expected warming time: 4–8 minutes for 500k active sessions. Monitor keyspace_hits rate — warming is complete when hit rate exceeds 0.90. Do not route high-traffic endpoints through the cold cache node."
+    },
+    {
+      "chunk_id": "eval-chunk-011",
+      "source_file": "runbooks/notification-service.md",
+      "text": "## Notification Service — SQS Queue Backlog Runbook\n\nNotification-service consumes from the NOTIFICATION_QUEUE_URL SQS queue. Backlog growth (ApproximateNumberOfMessagesVisible > 1000) indicates consumer throughput is below producer rate. Causes: downstream email/SMS provider throttling, insufficient Lambda concurrency, or a poison-pill message causing repeated failures and DLQ routing. Immediate action: inspect DLQ for failed message patterns; increase Lambda reserved concurrency (NOTIFICATION_LAMBDA_CONCURRENCY env var); temporarily pause non-critical notification types via feature flag."
+    },
+    {
+      "chunk_id": "eval-chunk-012",
+      "source_file": "runbooks/sqs-operations.md",
+      "text": "## SQS Backlog Mitigation and Consumer Scaling\n\nTo drain an SQS backlog: increase Lambda concurrency limit, raise batch size (up to 10 for standard queues), and shorten visibility timeout to 90 seconds so failed messages reappear quickly. For persistent backlogs caused by a broken consumer, purge the queue after capturing a sample to the DLQ for post-mortem analysis. Never purge without capturing samples — the message bodies contain the evidence. Visibility timeout must exceed maximum processing time to prevent duplicate delivery."
+    },
+    {
+      "chunk_id": "eval-chunk-013",
+      "source_file": "runbooks/api-gateway.md",
+      "text": "## API Gateway Rate Limiting Configuration\n\nCognis API Gateway enforces per-client rate limits using a token bucket algorithm. Default limits: 1000 req/min burst, 100 req/min steady-state. Clients exceeding limits receive HTTP 429 with Retry-After header. To increase a specific client's quota: update the rate_limits DynamoDB table with the client_id and new quota values. For sudden 429 spikes against legitimate clients, temporarily whitelist the client_id in the rate_limiter_bypass SSM parameter. Alert threshold: 429 rate > 5% of total requests for a 5-minute window."
+    },
+    {
+      "chunk_id": "eval-chunk-014",
+      "source_file": "runbooks/circuit-breaker.md",
+      "text": "## Circuit Breaker Runbook — Open State Response\n\nThe API gateway uses a circuit breaker for downstream service calls. An open circuit blocks requests and returns a cached fallback response or HTTP 503. Circuit opens when error rate exceeds 50% over a 60-second window with a minimum of 20 requests. To reset a stuck-open circuit: identify the downstream service from the circuit_name tag in CloudWatch; confirm the downstream service has recovered (error rate < 10%); then call the admin endpoint POST /admin/circuit/{circuit_name}/reset to force the circuit closed. Do not reset before the downstream service is healthy."
+    },
+    {
+      "chunk_id": "eval-chunk-015",
+      "source_file": "runbooks/auth-service.md",
+      "text": "## Auth Service — Latency Spike Runbook\n\nAuth-service latency spikes (p99 > 500ms) are usually caused by: (1) JWKS endpoint calls on every request due to disabled JWT cache, (2) excessive DynamoDB reads for permission checks with cold table partitions, or (3) upstream Identity Provider (IdP) latency. Check AUTH_JWT_CACHE_TTL — if 0, the service fetches JWKS on every request. Set to 300 seconds minimum. For permission check latency, verify DynamoDB DAX is enabled for the Permissions table. If IdP is the cause, enable auth-service's fallback token validation path."
+    },
+    {
+      "chunk_id": "eval-chunk-016",
+      "source_file": "runbooks/jwt-cache.md",
+      "text": "## JWT Token Cache Configuration and Tuning\n\nAuth-service caches validated JWT tokens to avoid repeated JWKS endpoint calls. Cache is backed by an in-process LRU with AUTH_JWT_CACHE_SIZE entries and AUTH_JWT_CACHE_TTL seconds TTL. For production with 50k concurrent users, set cache size to 100k entries and TTL to 300 seconds. Cache hit rate should be > 0.95 in steady state. If a compromised token must be invalidated before expiry, call POST /admin/token/revoke — this adds the jti to a DynamoDB revocation list checked on cache hit. Revoked tokens return 401."
+    },
+    {
+      "chunk_id": "eval-chunk-017",
+      "source_file": "runbooks/analytics-service.md",
+      "text": "## Analytics Service — Disk I/O Saturation Runbook\n\nAnalytics-service performs heavy I/O for report generation — large file scans, intermediate sort files, and Parquet writes. I/O saturation (iowait > 30%) blocks the event loop and causes request timeouts. Immediate mitigation: reduce concurrent report job slots (ANALYTICS_MAX_CONCURRENT_JOBS from 8 to 4). Long-term fix: move intermediate files to EFS or S3 to offload instance disk. Check EBS volume throughput limits — gp2 volumes are capped at 250 MB/s; upgrade to gp3 and provision 500 MB/s for analytics workloads."
+    },
+    {
+      "chunk_id": "eval-chunk-018",
+      "source_file": "runbooks/disk-management.md",
+      "text": "## Log Rotation and Disk Capacity Management\n\nContainer disk usage alerts at 80% capacity. Analytics-service generates large intermediate files and application logs. Log rotation is configured via /etc/logrotate.d/analytics — rotate daily, keep 7 days, compress with gzip. If disk fills before rotation: identify large files with du -sh /var/log/* and /tmp/*; safely delete files older than 24 hours in /tmp; restart the analytics-service task to release file handles. Set up CloudWatch disk metric via the CloudWatch agent — alert when EBS volume DiskSpaceUtilization exceeds 80%."
+    },
+    {
+      "chunk_id": "eval-chunk-019",
+      "source_file": "runbooks/deployment-rollback.md",
+      "text": "## ECS Service Deployment Rollback\n\nTo roll back an ECS service to the previous task definition revision: identify the last-known-good revision via aws ecs describe-services; run aws ecs update-service --task-definition <service>:<revision> --force-new-deployment. ECS will perform a rolling replacement. For blue/green deployments managed via CodeDeploy, trigger a rollback from the CodeDeploy console — do not manually shift target group weights. Monitor deployment events: a rollback is complete when RunningCount equals DesiredCount and no STOPPED events appear for 2 minutes."
+    },
+    {
+      "chunk_id": "eval-chunk-020",
+      "source_file": "runbooks/database-migrations.md",
+      "text": "## Database Migration Rollback Procedure\n\nAll schema migrations must include a down migration. If a migration causes production errors: stop the deploying service immediately to prevent further writes in the new schema; execute the down migration via the migration CLI (alembic downgrade -1 or flyway undo); verify table structure with pg_dump --schema-only and compare against the expected baseline. For data backfill migrations, reversal may require a compensating migration rather than a simple rollback — assess data loss risk before proceeding. Keep migration execution time under 5 minutes to stay within the deployment health check window."
+    },
+    {
+      "chunk_id": "eval-chunk-021",
+      "source_file": "runbooks/ssl-certificates.md",
+      "text": "## SSL/TLS Certificate Expiry Response\n\nACM certificates managed by Cognis auto-renew 60 days before expiry, provided DNS validation records are in place. If auto-renewal fails: check ACM certificate status in the console — PENDING_VALIDATION means the DNS CNAME record was deleted; re-add it from the ACM console. For manually managed certificates on ALB listeners, replace via aws acm import-certificate before the expiry date. Alert on certificate expiry: CloudWatch metric DaysToExpiry < 30. After renewal, verify the new certificate fingerprint matches across all ALB listeners in all regions."
+    },
+    {
+      "chunk_id": "eval-chunk-022",
+      "source_file": "runbooks/tls-debugging.md",
+      "text": "## TLS Handshake Failure Diagnosis\n\nTLS handshake failures surface as SSL_ERROR_RX_RECORD_TOO_LONG or TLS alert: certificate expired in client logs. Steps: (1) verify certificate expiry with openssl s_client -connect host:443 -servername host; (2) check for intermediate certificate chain gaps — clients may not have the intermediate CA in their trust store; (3) confirm TLS version compatibility — Cognis services require TLS 1.2+, reject TLS 1.0/1.1. For mutual TLS (mTLS) endpoints, verify the client certificate has not expired and was issued by the expected CA. Rotate certificates before expiry, not after."
+    },
+    {
+      "chunk_id": "eval-chunk-023",
+      "source_file": "runbooks/network-timeouts.md",
+      "text": "## Downstream Service Timeout Configuration\n\nCheckout-service calls payments-service and inventory-service synchronously. Default downstream timeout is 3 seconds (CHECKOUT_DOWNSTREAM_TIMEOUT_MS). When downstream latency exceeds this, checkout requests fail with HTTP 504. Increase timeout only after confirming the downstream service can actually respond within the new limit. For persistent upstream timeouts, enable the circuit breaker (CHECKOUT_CIRCUIT_BREAKER_ENABLED=true) to fail fast after 5 consecutive timeouts and return a degraded response rather than queueing requests. Connection pool exhaustion can also cause apparent timeout increases — check checkout-service HTTP client pool size."
+    },
+    {
+      "chunk_id": "eval-chunk-024",
+      "source_file": "runbooks/network-latency.md",
+      "text": "## Network Latency Investigation in VPC\n\nInter-service latency spikes within a VPC can be caused by: (1) cross-AZ traffic — ensure ECS tasks and their downstream dependencies are in the same AZ using placement constraints; (2) NAT gateway congestion — services calling external APIs through a NAT gateway share 10 Gbps bandwidth; (3) TCP retransmits due to packet loss — check CloudWatch NetworkPacketsOut and look for retransmit ratio > 0.1%. Use VPC Flow Logs to identify unusual traffic patterns. For payments-service to RDS latency, verify both are in the same subnet group and the RDS security group allows inbound from payments-service security group."
+    },
+    {
+      "chunk_id": "eval-chunk-025",
+      "source_file": "runbooks/rds-replication.md",
+      "text": "## RDS Replication Lag Runbook\n\nRDS read replica lag (ReplicaLag CloudWatch metric) should stay below 1 second in normal operation. Lag spikes above 30 seconds indicate the replica is falling behind the primary — typically caused by write-heavy workloads, large transactions, or replica instance undersizing. Immediate mitigation: stop routing read traffic to the lagging replica (remove from read replica DNS entry). If using orders-service CQRS read model, enable fallback to primary reads by setting ORDERS_READ_REPLICA_FALLBACK=true. Replica lag is expected to recover within 5 minutes after write load drops. Monitor: alert when ReplicaLag > 60 seconds for 3 consecutive datapoints."
+    },
+    {
+      "chunk_id": "eval-chunk-026",
+      "source_file": "runbooks/rds-failover.md",
+      "text": "## RDS Multi-AZ Failover Runbook\n\nRDS Multi-AZ automatic failover completes within 60–120 seconds. During failover, services will receive connection errors — connection pools must be configured to retry and re-resolve DNS (APP_DB_CONNECTION_RETRY=true). After failover, the former primary becomes the new standby. Verify the new primary is accepting writes: psql -c 'SELECT pg_is_in_recovery();' — should return false. Update read replica connection strings if any replicas were promoted. Notify the on-call team. For payments-service, the critical metric is failover duration — target < 90 seconds RTO. Test failover quarterly using aws rds reboot-db-instance --force-failover."
+    },
+    {
+      "chunk_id": "eval-chunk-027",
+      "source_file": "runbooks/kubernetes/crashloopbackoff.md",
+      "text": "## Kubernetes — CrashLoopBackOff\n\nA pod in CrashLoopBackOff is repeatedly starting, crashing, and being restarted by kubelet. Each restart cycle backs off exponentially (10s → 20s → 40s → 80s → 160s → 300s cap). Common causes: application error on startup (bad config, missing env var, failed migration), OOMKilled (container exceeds its memory limit, exit code 137), liveness probe failing immediately after start, missing or invalid secret/ConfigMap mount. Diagnosis: kubectl get pods -n <namespace> | grep CrashLoop; kubectl describe pod <pod-name> to inspect Last State exit code; kubectl logs <pod-name> --previous to read crash logs before the pod is restarted."
+    },
+    {
+      "chunk_id": "eval-chunk-028",
+      "source_file": "runbooks/kubernetes/crashloopbackoff.md",
+      "text": "## Kubernetes OOMKilled — Exit Code 137\n\nWhen a container is OOMKilled (exit code 137), the Linux kernel sent SIGKILL because the container exceeded its memory limit. Fix: increase the container memory limit in the Deployment spec under resources.limits.memory. Do not remove limits — removing them risks noisy-neighbour evictions on the node. Example: raise from 256Mi to 512Mi, apply with kubectl apply -f deployment.yaml. Check kubectl top pod to confirm current memory usage before setting the new limit. If memory grows unboundedly, the root cause is a memory leak — attach a heap profiler and capture a snapshot rather than just raising the limit indefinitely. Cascading effect: repeated OOMKills cause CrashLoopBackOff with exponential backoff, making the service unavailable until the pod reaches the 300-second backoff cap."
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "q001",
+      "query": "service:payments-service failure:connection_pool_exhaustion severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-001", "eval-chunk-002"],
+      "description": "Payments service DB connection pool exhaustion — critical"
+    },
+    {
+      "query_id": "q002",
+      "query": "service:checkout-service failure:connection_pool_exhaustion severity:high",
+      "relevant_chunk_ids": ["eval-chunk-002", "eval-chunk-003"],
+      "description": "Checkout service DB connection pool exhaustion — high"
+    },
+    {
+      "query_id": "q003",
+      "query": "service:orders-service failure:memory_leak severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-004", "eval-chunk-005"],
+      "description": "Orders service memory leak causing OOM kills"
+    },
+    {
+      "query_id": "q004",
+      "query": "service:recommendation-service failure:out_of_memory severity:high",
+      "relevant_chunk_ids": ["eval-chunk-005"],
+      "description": "Recommendation service OOM container kill"
+    },
+    {
+      "query_id": "q005",
+      "query": "service:recommendation-service failure:high_cpu_utilization severity:high",
+      "relevant_chunk_ids": ["eval-chunk-006", "eval-chunk-007"],
+      "description": "Recommendation service high CPU utilization"
+    },
+    {
+      "query_id": "q006",
+      "query": "service:analytics-service failure:cpu_saturation severity:medium",
+      "relevant_chunk_ids": ["eval-chunk-006"],
+      "description": "Analytics service CPU saturation during report generation"
+    },
+    {
+      "query_id": "q007",
+      "query": "service:session-service failure:cache_miss_spike severity:high",
+      "relevant_chunk_ids": ["eval-chunk-008", "eval-chunk-010"],
+      "description": "Session service Redis cache miss spike"
+    },
+    {
+      "query_id": "q008",
+      "query": "service:session-service failure:redis_connection_failure severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-008", "eval-chunk-009"],
+      "description": "Session service Redis connection failure"
+    },
+    {
+      "query_id": "q009",
+      "query": "service:notification-service failure:queue_backlog severity:high",
+      "relevant_chunk_ids": ["eval-chunk-011", "eval-chunk-012"],
+      "description": "Notification service SQS queue backlog growth"
+    },
+    {
+      "query_id": "q010",
+      "query": "service:notification-service failure:message_processing_lag severity:medium",
+      "relevant_chunk_ids": ["eval-chunk-011"],
+      "description": "Notification service message processing lag"
+    },
+    {
+      "query_id": "q011",
+      "query": "service:api-gateway failure:rate_limit_exceeded severity:high",
+      "relevant_chunk_ids": ["eval-chunk-013"],
+      "description": "API gateway rate limit exceeded for a client"
+    },
+    {
+      "query_id": "q012",
+      "query": "service:api-gateway failure:circuit_breaker_open severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-013", "eval-chunk-014"],
+      "description": "API gateway circuit breaker open state"
+    },
+    {
+      "query_id": "q013",
+      "query": "service:auth-service failure:high_latency severity:high",
+      "relevant_chunk_ids": ["eval-chunk-015"],
+      "description": "Auth service latency spike due to JWKS calls"
+    },
+    {
+      "query_id": "q014",
+      "query": "service:auth-service failure:jwt_validation_timeout severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-015", "eval-chunk-016"],
+      "description": "Auth service JWT validation timeouts"
+    },
+    {
+      "query_id": "q015",
+      "query": "service:analytics-service failure:disk_io_saturation severity:high",
+      "relevant_chunk_ids": ["eval-chunk-017"],
+      "description": "Analytics service disk I/O saturation"
+    },
+    {
+      "query_id": "q016",
+      "query": "service:analytics-service failure:disk_full severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-017", "eval-chunk-018"],
+      "description": "Analytics service disk capacity full"
+    },
+    {
+      "query_id": "q017",
+      "query": "service:payments-service failure:failed_deployment severity:high",
+      "relevant_chunk_ids": ["eval-chunk-019"],
+      "description": "Payments service failed deployment requiring rollback"
+    },
+    {
+      "query_id": "q018",
+      "query": "service:orders-service failure:migration_failure severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-019", "eval-chunk-020"],
+      "description": "Orders service database migration failure"
+    },
+    {
+      "query_id": "q019",
+      "query": "service:api-gateway failure:ssl_certificate_expiry severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-021", "eval-chunk-022"],
+      "description": "API gateway SSL certificate expiry"
+    },
+    {
+      "query_id": "q020",
+      "query": "service:auth-service failure:tls_handshake_failure severity:high",
+      "relevant_chunk_ids": ["eval-chunk-021", "eval-chunk-022"],
+      "description": "Auth service TLS handshake failures"
+    },
+    {
+      "query_id": "q021",
+      "query": "service:checkout-service failure:network_timeout severity:high",
+      "relevant_chunk_ids": ["eval-chunk-023", "eval-chunk-024"],
+      "description": "Checkout service network timeouts to downstream services"
+    },
+    {
+      "query_id": "q022",
+      "query": "service:payments-service failure:upstream_timeout severity:high",
+      "relevant_chunk_ids": ["eval-chunk-023"],
+      "description": "Payments service upstream timeout failures"
+    },
+    {
+      "query_id": "q023",
+      "query": "service:orders-service failure:db_replication_lag severity:high",
+      "relevant_chunk_ids": ["eval-chunk-025"],
+      "description": "Orders service RDS read replica lag"
+    },
+    {
+      "query_id": "q024",
+      "query": "service:payments-service failure:database_failover severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-025", "eval-chunk-026"],
+      "description": "Payments service RDS Multi-AZ failover"
+    },
+    {
+      "query_id": "q025",
+      "query": "service:analytics-service failure:replica_lag severity:medium",
+      "relevant_chunk_ids": ["eval-chunk-025"],
+      "description": "Analytics service read replica lag impacting reports"
+    },
+    {
+      "query_id": "q026",
+      "query": "service:cognis-api failure:kubernetes_oomkilled severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-027", "eval-chunk-028"],
+      "description": "Kubernetes pod OOMKilled (exit code 137) causing CrashLoopBackOff"
+    },
+    {
+      "query_id": "q027",
+      "query": "service:cognis-worker failure:crashloopbackoff severity:high",
+      "relevant_chunk_ids": ["eval-chunk-027"],
+      "description": "Kubernetes pod in CrashLoopBackOff with unknown exit code"
+    },
+    {
+      "query_id": "q028",
+      "query": "service:cognis-api failure:cascading_oom_crashloop severity:critical",
+      "relevant_chunk_ids": ["eval-chunk-028", "eval-chunk-005"],
+      "description": "Cascading failure — OOMKilled pods triggering CrashLoopBackOff cascade"
+    }
+  ]
+}

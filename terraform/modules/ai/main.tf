@@ -1,0 +1,29 @@
+resource "aws_iam_policy" "bedrock_invoke" {
+  name        = "cognis-${var.environment}-bedrock-invoke"
+  description = "Allows Bedrock model invocation and reranking for Cognis"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = "bedrock:InvokeModel"
+        Resource = [
+          "arn:aws:bedrock:us-east-1::foundation-model/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+          "arn:aws:bedrock:us-east-1::foundation-model/us.anthropic.claude-sonnet-4-6",
+          "arn:aws:bedrock:us-east-1::foundation-model/us.cohere.embed-v4:0"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = "bedrock:Rerank"
+        Resource = "arn:aws:bedrock:us-east-1::foundation-model/us.cohere.rerank-v3-5:0"
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "cognis-${var.environment}-bedrock-invoke"
+    Environment = var.environment
+  }
+}

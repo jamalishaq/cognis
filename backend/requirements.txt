@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+boto3
+httpx
+mangum
+pytest
+pytest-asyncio
+moto[dynamodb,sqs,s3]
