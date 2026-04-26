@@ -23,7 +23,7 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
   thumbprint_list = [
     "6938fd4d98bab03faadb97b34396831e3780aea1"
   ]
-}  
+}
 
 resource "aws_iam_role" "github_actions_role" {
   name = "cognis-github-actions-role"
@@ -39,7 +39,7 @@ resource "aws_iam_role" "github_actions_role" {
         }
         Condition = {
           StringLike = {
-            "token.actions.githubusercontent.com:sub": "repo:jamalishaq/cognis:*"
+            "token.actions.githubusercontent.com:sub" : "repo:jamalishaq/cognis:*"
           }
         }
       }
@@ -113,7 +113,7 @@ resource "aws_iam_role" "terraform_execution_role" {
         }
         Condition = {
           StringLike = {
-            "token.actions.githubusercontent.com:sub": "repo:jamalishaq/cognis:*"
+            "token.actions.githubusercontent.com:sub" : "repo:jamalishaq/cognis:*"
           }
         }
       }
@@ -168,8 +168,8 @@ resource "aws_iam_policy" "allow_assume_terraform_role" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = "sts:AssumeRole"
+        Effect = "Allow"
+        Action = "sts:AssumeRole"
         # Reference the ARN of the role we just defined
         Resource = aws_iam_role.terraform_execution_role.arn
       }
@@ -195,6 +195,42 @@ resource "aws_iam_user_group_membership" "jamal_membership" {
   groups = [
     aws_iam_group.terraform_admins.name
   ]
+}
+
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "cognis-terraform-state"
+
+  tags = {
+    Name      = "cognis-terraform-state"
+    ManagedBy = "terraform"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "aws_acm_certificate" "self_signed" {

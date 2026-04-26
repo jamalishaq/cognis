@@ -68,9 +68,9 @@ resource "aws_lb_listener_rule" "auth" {
     type  = "authenticate-cognito"
     order = 1
     authenticate_cognito {
-      user_pool_arn       = aws_cognito_user_pool.main.arn
-      user_pool_client_id = aws_cognito_user_pool_client.main.id
-      user_pool_domain    = aws_cognito_user_pool_domain.main.domain
+      user_pool_arn              = aws_cognito_user_pool.main.arn
+      user_pool_client_id        = aws_cognito_user_pool_client.main.id
+      user_pool_domain           = aws_cognito_user_pool_domain.main.domain
       on_unauthenticated_request = "authenticate"
     }
   }

@@ -15,7 +15,7 @@ terraform {
 
 provider "aws" {
   region = "us-east-1"
-    assume_role {
+  assume_role {
     role_arn     = data.aws_iam_role.terraform_execution.arn
     session_name = "TerraformProvisioningSession"
   }

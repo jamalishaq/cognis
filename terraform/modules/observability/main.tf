@@ -1,9 +1,9 @@
 locals {
   # Extract short IDs for CloudWatch dimensions from ARNs
-  alb_suffix          = split("/", var.alb_arn)[2]
-  alb_id              = "app/${local.alb_suffix}/${split("/", var.alb_arn)[3]}"
-  target_group_id     = "targetgroup/${split("/", var.alb_target_group_arn)[1]}/${split("/", var.alb_target_group_arn)[2]}"
-  alarm_actions       = var.enable_alarm_actions && var.oncall_email != "" ? [aws_sns_topic.alarms[0].arn] : []
+  alb_suffix      = split("/", var.alb_arn)[2]
+  alb_id          = "app/${local.alb_suffix}/${split("/", var.alb_arn)[3]}"
+  target_group_id = "targetgroup/${split("/", var.alb_target_group_arn)[1]}/${split("/", var.alb_target_group_arn)[2]}"
+  alarm_actions   = var.enable_alarm_actions && var.oncall_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 }
 
 # ─── CloudWatch Log Groups ─────────────────────────────────────────────────────
@@ -241,11 +241,11 @@ resource "aws_cloudwatch_dashboard" "main" {
         width  = 12
         height = 6
         properties = {
-          title  = "ALB Request Count"
+          title   = "ALB Request Count"
           metrics = [["AWS/ApplicationELB", "RequestCount", "LoadBalancer", local.alb_id]]
-          period = 60
-          stat   = "Sum"
-          region = "us-east-1" # hardcoded — project is us-east-1 only
+          period  = 60
+          stat    = "Sum"
+          region  = "us-east-1" # hardcoded — project is us-east-1 only
         }
       },
       {
@@ -255,11 +255,11 @@ resource "aws_cloudwatch_dashboard" "main" {
         width  = 12
         height = 6
         properties = {
-          title  = "ALB 5xx Rate"
+          title   = "ALB 5xx Rate"
           metrics = [["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", local.alb_id, "TargetGroup", local.target_group_id]]
-          period = 60
-          stat   = "Sum"
-          region = "us-east-1" # hardcoded — project is us-east-1 only
+          period  = 60
+          stat    = "Sum"
+          region  = "us-east-1" # hardcoded — project is us-east-1 only
         }
       },
       {
@@ -269,11 +269,11 @@ resource "aws_cloudwatch_dashboard" "main" {
         width  = 12
         height = 6
         properties = {
-          title  = "ECS CPU Utilisation"
+          title   = "ECS CPU Utilisation"
           metrics = [["AWS/ECS", "CPUUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.ecs_service_name]]
-          period = 60
-          stat   = "Average"
-          region = "us-east-1" # hardcoded — project is us-east-1 only
+          period  = 60
+          stat    = "Average"
+          region  = "us-east-1" # hardcoded — project is us-east-1 only
         }
       },
       {
@@ -283,11 +283,11 @@ resource "aws_cloudwatch_dashboard" "main" {
         width  = 12
         height = 6
         properties = {
-          title  = "ECS Memory Utilisation"
+          title   = "ECS Memory Utilisation"
           metrics = [["AWS/ECS", "MemoryUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.ecs_service_name]]
-          period = 60
-          stat   = "Average"
-          region = "us-east-1" # hardcoded — project is us-east-1 only
+          period  = 60
+          stat    = "Average"
+          region  = "us-east-1" # hardcoded — project is us-east-1 only
         }
       },
       {
@@ -297,7 +297,7 @@ resource "aws_cloudwatch_dashboard" "main" {
         width  = 12
         height = 6
         properties = {
-          title  = "SQS Queue Depths"
+          title = "SQS Queue Depths"
           metrics = [
             ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.notification_queue_name],
             ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.ingestion_queue_name]
@@ -314,7 +314,7 @@ resource "aws_cloudwatch_dashboard" "main" {
         width  = 12
         height = 6
         properties = {
-          title  = "Lambda Errors"
+          title = "Lambda Errors"
           metrics = [
             ["AWS/Lambda", "Errors", "FunctionName", var.notify_lambda_function_name],
             ["AWS/Lambda", "Errors", "FunctionName", var.ingest_lambda_function_name]
