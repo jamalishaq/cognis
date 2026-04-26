@@ -225,6 +225,10 @@ resource "aws_ecs_task_definition" "main" {
         {
           name  = "ENVIRONMENT"
           value = var.environment
+        },
+        {
+          name  = "SSM_PREFIX"
+          value = "/cognis/${var.environment}"
         }
       ]
       secrets = [
