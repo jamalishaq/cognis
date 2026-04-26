@@ -132,6 +132,7 @@ resource "aws_iam_role_policy" "ecs_task" {
         Effect = "Allow"
         Action = [
           "ssm:GetParameter",
+          "ssm:GetParameters",
           "ssm:GetParametersByPath"
         ]
         Resource = "arn:aws:ssm:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:parameter${var.parameter_store_path_prefix}/*"
@@ -277,6 +278,7 @@ resource "aws_ecs_service" "main" {
     container_port   = 8000
   }
 
+  health_check_grace_period_seconds  = 60
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
   enable_execute_command             = true
