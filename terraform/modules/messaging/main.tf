@@ -114,6 +114,15 @@ resource "aws_iam_role_policy" "notify_lambda" {
           "logs:PutLogEvents"
         ]
         Resource = "arn:aws:logs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:log-group:/cognis/${var.environment}/lambda/notify:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -213,9 +222,18 @@ resource "aws_iam_role_policy" "ingest_lambda" {
         Resource = "arn:aws:logs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:log-group:/cognis/${var.environment}/lambda/ingest:*"
       },
       {
-        "Effect" : "Allow",
-        "Action" : ["ssm:GetParameter", "ssm:GetParametersByPath"],
-        "Resource" : "arn:aws:ssm:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:parameter/cognis/${var.environment}/*"
+        Effect = "Allow"
+        Action = ["ssm:GetParameter", "ssm:GetParametersByPath"]
+        Resource = "arn:aws:ssm:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:parameter/cognis/${var.environment}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface"
+        ]
+        Resource = "*"
       }
     ]
   })

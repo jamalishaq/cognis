@@ -37,7 +37,7 @@ resource "aws_cognito_user_pool_client" "main" {
   name         = "cognis-${var.environment}-client"
   user_pool_id = aws_cognito_user_pool.main.id
 
-  generate_secret = false
+  generate_secret = true
 
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["email", "openid", "profile"]
