@@ -43,7 +43,7 @@ module "networking" {
   source = "../../modules/networking"
 
   environment     = local.environment
-  certificate_arn = aws_acm_certificate.cert.arn
+  certificate_arn = var.certificate_arn
 }
 
 module "storage" {
