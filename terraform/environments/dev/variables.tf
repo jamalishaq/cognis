@@ -1,3 +1,8 @@
+variable "aws_account_id" {
+  type        = string
+  description = "AWS account ID"
+}
+
 variable "certificate_arn" {
   type        = string
   description = "ACM certificate ARN for the HTTPS ALB listener"
