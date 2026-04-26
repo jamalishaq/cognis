@@ -1,0 +1,66 @@
+name: Corpus Ingestion
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'runbooks/**'
+  push:
+    branches: [main]
+    paths:
+      - 'runbooks/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check markdown syntax
+        run: npx markdownlint-cli runbooks/**/*.md
+
+  ingest-and-evaluate:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      ENVIRONMENT: dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-1
+
+      - name: Get changed runbook files
+        id: changed
+        run: |
+          CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '^runbooks/' | tr '\n' ' ')
+          echo "files=$CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Ingest changed runbooks
+        run: python scripts/ingest_corpus.py --files ${{ steps.changed.outputs.files }}
+
+      - name: Evaluate retrieval quality
+        run: python scripts/evaluate_retrieval.py --threshold 0.8
+
+      - name: Post evaluation scores to workflow summary
+        if: always()
+        run: |
+          echo "## Retrieval Evaluation Results" >> $GITHUB_STEP_SUMMARY
+          cat evaluation_report.json >> $GITHUB_STEP_SUMMARY
