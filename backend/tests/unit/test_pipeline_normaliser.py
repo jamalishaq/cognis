@@ -78,7 +78,7 @@ def _make_normalised_alert(source: str, **kwargs) -> NormalisedAlert:
 def test_normaliser_delegates_to_registry():
     """Verify the pipeline orchestrator calls normaliser_registry.normalise, not a specific normaliser."""
     expected = _make_normalised_alert("grafana")
-    with patch("app.pipeline.normaliser.normaliser_registry.normalise", return_value=expected) as mock_normalise:
+    with patch("app.utils.normaliser.normaliser_registry.normalise", return_value=expected) as mock_normalise:
         result = normaliser.normalise(GRAFANA_PAYLOAD)
         mock_normalise.assert_called_once_with(GRAFANA_PAYLOAD)
         assert result is expected
@@ -86,7 +86,7 @@ def test_normaliser_delegates_to_registry():
 
 def test_normaliser_passes_payload_unchanged():
     payload = {"arbitrary": "data"}
-    with patch("app.pipeline.normaliser.normaliser_registry.normalise") as mock_normalise:
+    with patch("app.utils.normaliser.normaliser_registry.normalise") as mock_normalise:
         mock_normalise.return_value = _make_normalised_alert("generic")
         normaliser.normalise(payload)
         mock_normalise.assert_called_once_with(payload)
@@ -94,7 +94,7 @@ def test_normaliser_passes_payload_unchanged():
 
 def test_normaliser_returns_registry_result_directly():
     expected = _make_normalised_alert("pagerduty")
-    with patch("app.pipeline.normaliser.normaliser_registry.normalise", return_value=expected):
+    with patch("app.utils.normaliser.normaliser_registry.normalise", return_value=expected):
         assert normaliser.normalise(PAGERDUTY_PAYLOAD) is expected
 
 

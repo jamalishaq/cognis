@@ -119,7 +119,7 @@ def client():
 def test_analyse_returns_200_with_incident_id(aws_mock, client):
     brief = _make_brief()
     with (
-        patch("app.api.analyse.normaliser.normalise") as mock_norm,
+        patch("app.api.analyse.normalise") as mock_norm,
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -154,7 +154,7 @@ def test_analyse_stores_incident_in_dynamodb(aws_mock, client):
         received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -186,7 +186,7 @@ def test_analyse_stored_record_has_all_expected_fields(aws_mock, client):
         received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -216,7 +216,7 @@ def test_analyse_drops_sqs_notification(aws_mock, client):
         received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -248,7 +248,7 @@ def test_analyse_sqs_message_contains_all_notification_fields(aws_mock, client):
         received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -275,7 +275,7 @@ def test_analyse_incident_id_has_correct_format(aws_mock, client):
         severity="unknown", service="", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -299,7 +299,7 @@ def test_analyse_second_incident_gets_incremented_id(aws_mock, client):
         incident_id_for_brief = f"INC-20260423-00{i + 1}"
         brief = _make_brief(incident_id=incident_id_for_brief)
         with (
-            patch("app.api.analyse.normaliser.normalise", return_value=alert),
+            patch("app.api.analyse.normalise", return_value=alert),
             patch("app.api.analyse.triage.run", return_value=_TRIAGE),
             patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
             patch("app.api.analyse.agent.run", return_value=brief),
@@ -321,7 +321,7 @@ def test_analyse_triage_failure_returns_503(aws_mock, client):
         severity="unknown", service="", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", side_effect=RuntimeError("Bedrock unavailable")),
     ):
         response = client.post("/analyse", json=_GRAFANA_PAYLOAD)
@@ -338,7 +338,7 @@ def test_analyse_triage_failure_does_not_store_incident(aws_mock, client):
         severity="unknown", service="", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", side_effect=RuntimeError("fail")),
     ):
         client.post("/analyse", json=_GRAFANA_PAYLOAD)
@@ -353,7 +353,7 @@ def test_analyse_triage_failure_does_not_send_sqs(aws_mock, client):
         severity="unknown", service="", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", side_effect=RuntimeError("fail")),
     ):
         client.post("/analyse", json=_GRAFANA_PAYLOAD)
@@ -374,7 +374,7 @@ def test_analyse_agent_failure_returns_503(aws_mock, client):
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", side_effect=RuntimeError("Agent timeout")),
@@ -393,7 +393,7 @@ def test_analyse_agent_failure_includes_incident_id_in_error(aws_mock, client):
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", side_effect=RuntimeError("fail")),
@@ -411,7 +411,7 @@ def test_analyse_agent_failure_does_not_store_incident(aws_mock, client):
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", side_effect=RuntimeError("fail")),
@@ -433,7 +433,7 @@ def test_analyse_dynamodb_write_failure_still_returns_200(aws_mock, client):
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -452,7 +452,7 @@ def test_analyse_dynamodb_write_failure_still_sends_sqs(aws_mock, client):
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -477,7 +477,7 @@ def test_analyse_sqs_failure_still_returns_200(aws_mock, client):
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -496,7 +496,7 @@ def test_analyse_sqs_failure_still_stores_incident(aws_mock, client):
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -532,7 +532,7 @@ def test_analyse_rag_degradation_returns_200(aws_mock, client):
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
     )
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=degraded_retrieval),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -564,7 +564,7 @@ def test_analyse_calls_pipeline_stages_in_order(aws_mock, client):
         return fn
 
     with (
-        patch("app.api.analyse.normaliser.normalise", side_effect=record("normalise", alert)),
+        patch("app.api.analyse.normalise", side_effect=record("normalise", alert)),
         patch("app.api.analyse.triage.run", side_effect=record("triage", _TRIAGE)),
         patch("app.api.analyse.retrieval.run", side_effect=record("retrieval", _RETRIEVAL)),
         patch("app.api.analyse.agent.run", side_effect=record("agent", brief)),
@@ -588,7 +588,7 @@ def test_analyse_passes_triage_result_to_retrieval(aws_mock, client):
         return _RETRIEVAL
 
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", side_effect=capture_retrieval),
         patch("app.api.analyse.agent.run", return_value=brief),
@@ -599,7 +599,6 @@ def test_analyse_passes_triage_result_to_retrieval(aws_mock, client):
 
 
 def test_analyse_passes_incident_id_to_agent(aws_mock, client):
-    brief = _make_brief()
     alert = NormalisedAlert(
         source="grafana", title="Test", description="Test",
         severity="critical", service="payments-service", raw_payload={}, received_at=_CREATED_AT,
@@ -608,10 +607,10 @@ def test_analyse_passes_incident_id_to_agent(aws_mock, client):
 
     def capture_agent(alert_arg, triage_arg, retrieval_arg, incident_id):
         captured["incident_id"] = incident_id
-        return brief
+        return _make_brief(incident_id)
 
     with (
-        patch("app.api.analyse.normaliser.normalise", return_value=alert),
+        patch("app.api.analyse.normalise", return_value=alert),
         patch("app.api.analyse.triage.run", return_value=_TRIAGE),
         patch("app.api.analyse.retrieval.run", return_value=_RETRIEVAL),
         patch("app.api.analyse.agent.run", side_effect=capture_agent),

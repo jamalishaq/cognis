@@ -7,7 +7,7 @@ from boto3.dynamodb.conditions import Attr
 from fastapi import APIRouter, HTTPException
 
 from app.models.chat import ChatHistoryResponse, ChatMessage
-from app.models.incident import IncidentBrief
+from app.models.incident import IncidentBrief, IncidentRecord
 from app.services import dynamodb
 
 logger = logging.getLogger(__name__)
@@ -25,10 +25,10 @@ def _get_incident_or_404(incident_id: str) -> dict[str, Any]:
     return item
 
 
-@router.get("/incidents/{incident_id}", response_model=IncidentBrief)
-def get_incident(incident_id: str) -> IncidentBrief:
+@router.get("/incidents/{incident_id}", response_model=IncidentRecord)
+def get_incident(incident_id: str) -> IncidentRecord:
     item = _get_incident_or_404(incident_id)
-    return IncidentBrief(**item)
+    return IncidentRecord(**item)
 
 
 @router.get("/incidents/{incident_id}/history", response_model=ChatHistoryResponse)
