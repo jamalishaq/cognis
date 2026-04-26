@@ -36,6 +36,10 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
 
+      - name: Build Lambda packages
+        working-directory: .
+        run: bash scripts/build_lambdas.sh
+
       - name: terraform init
         run: terraform init
 
@@ -93,6 +97,10 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
 
+      - name: Build Lambda packages
+        working-directory: .
+        run: bash scripts/build_lambdas.sh
+
       - name: terraform init
         run: terraform init
 
@@ -106,7 +114,7 @@ jobs:
         run: |
           terraform plan -out=tfplan \
             -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
-            -var="certificate_arn=${{ secrets.CERTIFICATE_ARN }}" 
+            -var="certificate_arn=${{ secrets.CERTIFICATE_ARN }}"
 
       - name: terraform apply
         run: terraform apply tfplan
@@ -131,6 +139,10 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
 
+      - name: Build Lambda packages
+        working-directory: .
+        run: bash scripts/build_lambdas.sh
+
       - name: terraform init
         run: terraform init
 
@@ -144,7 +156,7 @@ jobs:
         run: |
           terraform plan -out=tfplan \
             -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
-            -var="certificate_arn=${{ secrets.CERTIFICATE_ARN }}" 
-            
+            -var="certificate_arn=${{ secrets.CERTIFICATE_ARN }}"
+
       - name: terraform apply
         run: terraform apply tfplan
