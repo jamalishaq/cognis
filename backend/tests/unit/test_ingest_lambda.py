@@ -12,9 +12,8 @@ from app.lambdas.ingest import (
     handler,
     _process_record,
     _build_markdown,
-    _chunk_markdown,
-    _split_sections,
 )
+from app.utils.chunker import chunk_markdown as _chunk_markdown, _split_sections
 
 
 # ---------------------------------------------------------------------------
