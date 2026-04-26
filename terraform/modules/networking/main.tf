@@ -158,7 +158,7 @@ resource "aws_security_group" "ecs" {
 
 resource "aws_security_group" "lambda" {
   name        = "cognis-${var.environment}-lambda-sg"
-  description = "Lambda functions — no inbound, all outbound"
+  description = "Lambda functions - no inbound, all outbound"
   vpc_id      = aws_vpc.main.id
 
   egress {

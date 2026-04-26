@@ -53,17 +53,31 @@ resource "null_resource" "ingest_build" {
 }
 
 # ─── Lambda Packaging ──────────────────────────────────────────────────────────
+# archive_file data sources are evaluated at plan time — the build directories
+# must exist before running terraform plan/apply. Run scripts/build_lambdas.sh first.
 
 data "archive_file" "notify" {
-  depends_on  = [null_resource.notify_build]
   type        = "zip"
   source_dir  = "${local.build_path}/notify"
   output_path = "${local.build_path}/notify.zip"
+
+  lifecycle {
+    precondition {
+      condition     = fileexists("${local.build_path}/notify/notify.py")
+      error_message = "Lambda build directory missing. Run: bash scripts/build_lambdas.sh"
+    }
+  }
 }
 
 data "archive_file" "ingest" {
-  depends_on  = [null_resource.ingest_build]
   type        = "zip"
   source_dir  = "${local.build_path}/ingest"
   output_path = "${local.build_path}/ingest.zip"
+
+  lifecycle {
+    precondition {
+      condition     = fileexists("${local.build_path}/ingest/ingest.py")
+      error_message = "Lambda build directory missing. Run: bash scripts/build_lambdas.sh"
+    }
+  }
 }

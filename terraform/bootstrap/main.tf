@@ -85,6 +85,26 @@ resource "aws_iam_role_policy" "github_actions_permissions" {
           "s3:ListBucket"
         ]
         Resource = "*"
+      },
+      # S3: Terraform state backend
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::cognis-terraform-state",
+          "arn:aws:s3:::cognis-terraform-state/*"
+        ]
+      },
+      # STS: Assume terraform execution role
+      {
+        Effect   = "Allow"
+        Action   = "sts:AssumeRole"
+        Resource = aws_iam_role.terraform_execution_role.arn
       }
     ]
   })
@@ -116,6 +136,14 @@ resource "aws_iam_role" "terraform_execution_role" {
             "token.actions.githubusercontent.com:sub" : "repo:jamalishaq/cognis:*"
           }
         }
+      },
+      # 3. Allow cognis-github-actions-role to assume this role
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.github_actions_role.arn
+        }
       }
     ]
   })
@@ -134,9 +162,11 @@ resource "aws_iam_role_policy" "terraform_full_service_permissions" {
           "ec2:*",
           "ecs:*",
           "ecr:*",
+          "elasticloadbalancing:*",
           "lambda:*",
           "dynamodb:*",
           "s3:*",
+          "s3vectors:*",
           "sqs:*",
           "iam:*",
           "cognito-idp:*",
