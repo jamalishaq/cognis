@@ -54,10 +54,7 @@ jobs:
         run: |
           terraform plan -no-color -out=tfplan \
             -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" \
-            -var="certificate_arn=${{ secrets.DEV_CERTIFICATE_ARN }}" \
-            -var="oncall_email=${{ secrets.ONCALL_EMAIL }}" \
-            -var="ses_recipient_addresses=${{ secrets.SES_RECIPIENT_ADDRESSES }}" \
-            -var="active_notification_providers=${{ secrets.ACTIVE_NOTIFICATION_PROVIDERS }}" \
+            -var="certificate_arn=${{ secrets.CERTIFICATE_ARN }}" \
             2>&1 | tee tfplan.txt
         continue-on-error: true
 
