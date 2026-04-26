@@ -189,6 +189,11 @@ resource "aws_iam_role_policy" "ecs_execution" {
           "logs:PutLogEvents"
         ]
         Resource = "arn:aws:logs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:log-group:${var.fastapi_log_group_name}:*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetSecretValue"
+        Resource = var.langfuse_secret_arn
       }
     ]
   })
