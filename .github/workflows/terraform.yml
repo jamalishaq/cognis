@@ -37,7 +37,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
 
       - name: Build Lambda packages
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         run: bash scripts/build_lambdas.sh
 
       - name: terraform init
@@ -95,7 +95,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
 
       - name: Build Lambda packages
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         run: bash scripts/build_lambdas.sh
 
       - name: terraform init
@@ -137,7 +137,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
 
       - name: Build Lambda packages
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         run: bash scripts/build_lambdas.sh
 
       - name: terraform init
