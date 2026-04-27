@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     active_notification_providers: str = "ses"
     ses_from_email: str = ""
     ses_to_emails: str = ""
+    frontend_origin: str = ""
 
     @property
     def is_local(self) -> bool:
@@ -71,6 +72,7 @@ _SSM_PARAM_MAP = {
     "active-notification-providers": "active_notification_providers",
     "ses/sender-address":            "ses_from_email",
     "ses/recipient-addresses":       "ses_to_emails",
+    "frontend-origin":              "frontend_origin",
 }
 
 
