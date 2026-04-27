@@ -66,7 +66,7 @@ resource "aws_cognito_user_pool_domain" "main" {
 
 resource "aws_lb_listener_rule" "auth" {
   listener_arn = var.alb_listener_arn
-  priority     = 1
+  priority     = 100
 
   action {
     type  = "authenticate-cognito"

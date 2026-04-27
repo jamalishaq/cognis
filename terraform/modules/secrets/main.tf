@@ -32,7 +32,7 @@ resource "aws_ssm_parameter" "bedrock_region" {
 resource "aws_ssm_parameter" "triage_model_id" {
   name  = "/cognis/${var.environment}/triage-model-id"
   type  = "String"
-  value = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  value = "amazon.nova-micro-v1:0"
 
   tags = { Environment = var.environment }
 }
@@ -40,7 +40,7 @@ resource "aws_ssm_parameter" "triage_model_id" {
 resource "aws_ssm_parameter" "chat_model_id" {
   name  = "/cognis/${var.environment}/chat-model-id"
   type  = "String"
-  value = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  value = "amazon.nova-micro-v1:0"
 
   tags = { Environment = var.environment }
 }
@@ -48,7 +48,7 @@ resource "aws_ssm_parameter" "chat_model_id" {
 resource "aws_ssm_parameter" "judge_model_id" {
   name  = "/cognis/${var.environment}/judge-model-id"
   type  = "String"
-  value = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  value = "amazon.nova-micro-v1:0"
 
   tags = { Environment = var.environment }
 }
@@ -56,7 +56,7 @@ resource "aws_ssm_parameter" "judge_model_id" {
 resource "aws_ssm_parameter" "reasoning_model_id" {
   name  = "/cognis/${var.environment}/reasoning-model-id"
   type  = "String"
-  value = "us.anthropic.claude-sonnet-4-6"
+  value = "amazon.nova-micro-v1:0"
 
   tags = { Environment = var.environment }
 }
@@ -65,6 +65,14 @@ resource "aws_ssm_parameter" "embedding_model_id" {
   name  = "/cognis/${var.environment}/embedding-model-id"
   type  = "String"
   value = "us.cohere.embed-v4:0"
+
+  tags = { Environment = var.environment }
+}
+
+resource "aws_ssm_parameter" "rerank_model_id" {
+  name  = "/cognis/${var.environment}/rerank-model-id"
+  type  = "String"
+  value = "arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0"
 
   tags = { Environment = var.environment }
 }
@@ -101,14 +109,6 @@ resource "aws_ssm_parameter" "notification_queue_url" {
   tags = { Environment = var.environment }
 }
 
-resource "aws_ssm_parameter" "rerank_model_id" {
-  name  = "/cognis/${var.environment}/rerank-model-id"
-  type  = "String"
-  value = "us.cohere.rerank-v3-5:0"
-
-  tags = { Environment = var.environment }
-}
-
 resource "aws_ssm_parameter" "ingestion_queue_url" {
   name  = "/cognis/${var.environment}/sqs/ingestion-queue-url"
   type  = "String"
@@ -121,6 +121,14 @@ resource "aws_ssm_parameter" "ses_sender_address" {
   name  = "/cognis/${var.environment}/ses/sender-address"
   type  = "String"
   value = "toyinjamal@gmail.com"
+
+  tags = { Environment = var.environment }
+}
+
+resource "aws_ssm_parameter" "ses_recipient_addresses" {
+  name  = "/cognis/${var.environment}/ses/recipient-addresses"
+  type  = "String"
+  value = var.ses_recipient_addresses
 
   tags = { Environment = var.environment }
 }
@@ -153,14 +161,6 @@ resource "aws_ssm_parameter" "s3_vectors_index_name" {
   name  = "/cognis/${var.environment}/s3-vectors-index-name"
   type  = "String"
   value = var.vector_index_name
-
-  tags = { Environment = var.environment }
-}
-
-resource "aws_ssm_parameter" "ses_recipient_addresses" {
-  name  = "/cognis/${var.environment}/ses/recipient-addresses"
-  type  = "String"
-  value = var.ses_recipient_addresses
 
   tags = { Environment = var.environment }
 }

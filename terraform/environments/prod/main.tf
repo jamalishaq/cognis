@@ -42,8 +42,9 @@ locals {
 module "networking" {
   source = "../../modules/networking"
 
-  environment     = local.environment
-  certificate_arn = var.certificate_arn
+  environment         = local.environment
+  certificate_arn     = var.certificate_arn
+  alerting_tool_cidrs = var.alerting_tool_cidrs
 }
 
 module "storage" {

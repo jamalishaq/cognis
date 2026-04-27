@@ -19,15 +19,22 @@
 - `aws_route_table_association` x2 — associate private route table with both private subnets
 
 ## Security Groups
-- `aws_security_group` alb — inbound 443 from VPC CIDR (`10.0.0.0/16`), all outbound
+- `aws_security_group` alb — two inbound rules:
+  - 443 from `var.alerting_tool_cidrs` (alerting tools posting to `/analyse` — capstone: developer IP, prod: alerting tool published CIDRs)
+  - 443 from `0.0.0.0/0` (engineers accessing Cognito-protected routes from internet)
+  - All outbound to ECS security group
 - `aws_security_group` ecs — inbound 8000 from ALB security group only, all outbound
 - `aws_security_group` lambda — no inbound, all outbound
 - `aws_security_group` vpc_endpoints — inbound 443 from VPC CIDR, all outbound
 
 ## Application Load Balancer
-- `aws_lb` — internal (`internal = true`), type application, in both public subnets, ALB security group
+- `aws_lb` — internet-facing (`internal = false`), type application, in both public subnets, ALB security group
 - `aws_lb_target_group` — port 8000, protocol HTTP, target type IP (required for Fargate), health check path `/health`
-- `aws_lb_listener` — port 443 HTTPS, forward to target group (Cognito auth action added by auth/ module)
+- `aws_lb_listener` — port 443 HTTPS, two listener rules:
+  - Rule 1: path `/analyse`, method POST — IP allowlist check, forward to ECS target group (no Cognito)
+  - Rule 2: all other paths — Cognito authenticate action (added by auth/ module), forward to ECS target group after successful auth
+
+**Variable: `alerting_tool_cidrs`** — list of CIDR blocks for alerting tool source IPs. For capstone set to `["YOUR_IP/32"]`. In production replace with published IP ranges from PagerDuty, Grafana Cloud, or Datadog.
 
 ## VPC Endpoints (keep traffic within AWS network)
 - `aws_vpc_endpoint` bedrock-runtime — Interface type, private DNS enabled

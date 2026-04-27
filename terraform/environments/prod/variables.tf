@@ -23,3 +23,8 @@ variable "active_notification_providers" {
   default     = "ses"
   description = "Comma-separated active notification providers"
 }
+
+variable "alerting_tool_cidrs" {
+  type        = list(string)
+  description = "CIDR blocks for alerting tool IPs allowed to POST /analyse (e.g. PagerDuty, Grafana Cloud published ranges)"
+}

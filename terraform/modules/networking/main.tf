@@ -108,20 +108,22 @@ resource "aws_route_table_association" "private" {
 
 resource "aws_security_group" "alb" {
   name        = "cognis-${var.environment}-alb-sg"
-  description = "ALB inbound from VPC CIDR on 443"
+  description = "ALB inbound from alerting tools and engineers on 443"
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description = "Alerting tools posting to /analyse"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
+    cidr_blocks = var.alerting_tool_cidrs
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+  ingress {
+    description = "Engineers accessing Cognito-protected routes"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -129,6 +131,15 @@ resource "aws_security_group" "alb" {
     Name        = "cognis-${var.environment}-alb-sg"
     Environment = var.environment
   }
+}
+
+resource "aws_security_group_rule" "alb_egress_to_ecs" {
+  type                     = "egress"
+  from_port                = 8000
+  to_port                  = 8000
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.alb.id
+  source_security_group_id = aws_security_group.ecs.id
 }
 
 resource "aws_security_group" "ecs" {
@@ -201,7 +212,7 @@ resource "aws_security_group" "vpc_endpoints" {
 
 resource "aws_lb" "main" {
   name               = "cognis-${var.environment}-alb"
-  internal           = true
+  internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
@@ -249,6 +260,34 @@ resource "aws_lb_listener" "https" {
   tags = {
     Name        = "cognis-${var.environment}-https-listener"
     Environment = var.environment
+  }
+}
+
+resource "aws_lb_listener_rule" "analyse" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 10
+
+  condition {
+    path_pattern {
+      values = ["/analyse"]
+    }
+  }
+
+  condition {
+    http_request_method {
+      values = ["POST"]
+    }
+  }
+
+  condition {
+    source_ip {
+      values = var.alerting_tool_cidrs
+    }
+  }
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.main.arn
   }
 }
 

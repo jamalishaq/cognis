@@ -5,8 +5,12 @@
 ### Frontend Bucket
 - `aws_s3_bucket` frontend — name `cognis-${var.environment}-frontend`
 - `aws_s3_bucket_versioning` — enabled
-- `aws_s3_bucket_public_access_block` — all public access blocked (served via internal ALB only)
+- `aws_s3_bucket_public_access_block` — public access allowed for static website hosting (ACL disabled, bucket policy controls access)
+- `aws_s3_bucket_website_configuration` — index_document `index.html`, error_document `index.html` (SPA routing)
+- `aws_s3_bucket_policy` — allows `s3:GetObject` from `*` (public read for static files only)
 - `aws_s3_bucket_server_side_encryption_configuration` — AES256
+
+The frontend bucket serves static HTML/CSS/JS files publicly — no sensitive data. Engineers access the React app via the S3 static website URL, which then makes API calls to the ALB.
 
 ### Terraform State Bucket (dev and prod share one bucket, different keys)
 - `aws_s3_bucket` terraform_state — name `cognis-terraform-state`
