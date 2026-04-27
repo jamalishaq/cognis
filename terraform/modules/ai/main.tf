@@ -9,7 +9,10 @@ resource "aws_iam_policy" "bedrock_invoke" {
     Statement = [
       {
         Effect = "Allow"
-        Action = "bedrock:InvokeModel"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream"
+        ]
         Resource = [
           "arn:aws:bedrock:*::foundation-model/us.anthropic.claude-haiku-4-5-20251001-v1:0",
           "arn:aws:bedrock:*::foundation-model/us.anthropic.claude-sonnet-4-6",

@@ -102,8 +102,11 @@ resource "aws_iam_role_policy" "notify_lambda" {
         Resource = "*"
       },
       {
-        Effect   = "Allow"
-        Action   = "ssm:GetParameter"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ]
         Resource = "arn:aws:ssm:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:parameter/cognis/${var.environment}/*"
       },
       {
@@ -141,8 +144,9 @@ resource "aws_lambda_function" "notify" {
 
   environment {
     variables = {
-      SES_SENDER_ADDRESS = "noreply@cognis.internal"
-      ENVIRONMENT        = var.environment
+      ENVIRONMENT = var.environment
+      SES_MODE    = "send"
+      SSM_PREFIX  = "/cognis/${var.environment}"
     }
   }
 
