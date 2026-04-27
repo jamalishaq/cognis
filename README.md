@@ -39,6 +39,9 @@ Triage Classifier                         │
              Reasoning Agent
                        │
                        ▼
+             LLM as a Judge
+                       | 
+                       ▼
              Store Incident Brief (DynamoDB)
                        │
              ┌─────────┴──────────┐

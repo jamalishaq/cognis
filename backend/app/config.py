@@ -75,7 +75,6 @@ _SSM_PARAM_MAP = {
     "active-notification-providers": "active_notification_providers",
     "ses/sender-address":            "ses_from_email",
     "ses/recipient-addresses":       "ses_to_emails",
-    "frontend-origin":               "frontend_origin",
 }
 
 

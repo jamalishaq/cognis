@@ -7,7 +7,7 @@ app = FastAPI(title="Cognis", version="0.1.0")
 
 _ALLOWED_ORIGINS = {
     "local": ["http://localhost:5173", "http://localhost:3000"],
-    "dev": [settings.frontend_origin] if settings.frontend_origin else [],
+    "dev": "http://cognis-dev-frontend.s3-website-us-east-1.amazonaws.com/",
     "prod": [settings.frontend_origin] if settings.frontend_origin else [],
 }
 
