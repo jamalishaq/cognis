@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 # Make `app` importable from backend/
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from backend.app.config import settings
 from backend.app.utils.chunker import chunk_markdown

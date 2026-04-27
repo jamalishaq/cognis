@@ -45,7 +45,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(REPO_ROOT / "backend"))
+sys.path.insert(0, str(REPO_ROOT))
 
 os.environ.setdefault("ENVIRONMENT", "local")
 if os.environ["ENVIRONMENT"] == "local":
