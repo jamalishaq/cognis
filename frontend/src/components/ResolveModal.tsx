@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useIncidentStore } from "@/store/incidentStore";
+import { useQueryClient } from "@tanstack/react-query";
 import type { IncidentRecord } from "@/types";
 
 interface ResolveModalProps {
@@ -25,6 +26,7 @@ export function ResolveModal({ incident, open, onOpenChange, onResolved }: Resol
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setCurrentIncident = useIncidentStore((s) => s.setCurrentIncident);
+  const queryClient = useQueryClient();
 
   const handleSubmit = async () => {
     if (!notes.trim()) return;
@@ -36,7 +38,9 @@ export function ResolveModal({ incident, open, onOpenChange, onResolved }: Resol
         resolution_notes: notes.trim(),
         resolved_by: null,
       });
-      setCurrentIncident({ ...incident, status: "resolved" });
+      const resolved = { ...incident, status: "resolved" as const };
+      setCurrentIncident(resolved);
+      queryClient.setQueryData(["incident", incident.incident_id], resolved);
       onOpenChange(false);
       onResolved();
     } catch {
