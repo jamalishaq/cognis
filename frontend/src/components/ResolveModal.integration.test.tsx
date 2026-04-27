@@ -2,9 +2,15 @@ import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from "vitest
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ResolveModal } from "./ResolveModal";
 import { mockIncident } from "@/test/fixtures";
 import { API_BASE_URL } from "@/lib/api";
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 const server = setupServer(
   http.post(`${API_BASE_URL}/incidents/:incident_id/resolve`, () => {
@@ -23,7 +29,7 @@ afterAll(() => server.close());
 
 describe("ResolveModal", () => {
   it("renders with the incident summary pre-filled", () => {
-    render(
+    renderWithQuery(
       <ResolveModal
         incident={mockIncident}
         open={true}
@@ -36,7 +42,7 @@ describe("ResolveModal", () => {
   });
 
   it("renders the title", () => {
-    render(
+    renderWithQuery(
       <ResolveModal
         incident={mockIncident}
         open={true}
@@ -50,7 +56,7 @@ describe("ResolveModal", () => {
   it("calls onResolved and onOpenChange after successful submission", async () => {
     const onResolved = vi.fn();
     const onOpenChange = vi.fn();
-    render(
+    renderWithQuery(
       <ResolveModal
         incident={mockIncident}
         open={true}
@@ -74,7 +80,7 @@ describe("ResolveModal", () => {
       }),
     );
 
-    render(
+    renderWithQuery(
       <ResolveModal
         incident={mockIncident}
         open={true}
@@ -91,7 +97,7 @@ describe("ResolveModal", () => {
   });
 
   it("does not render when open is false", () => {
-    render(
+    renderWithQuery(
       <ResolveModal
         incident={mockIncident}
         open={false}
