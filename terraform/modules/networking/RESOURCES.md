@@ -1,62 +1,40 @@
-# networking/ — Resources to Provision
+# networking/ — Resources to Provision (Capstone)
+
+> **Note:** This is the simplified capstone networking setup. All production hardening decisions (private subnets, NAT Gateway, VPC Endpoints, IP allowlisting, Cognito on ALB) are documented in DECISIONS.md under VPC & Networking — Future Implementation and deferred to production.
 
 ## VPC
 - `aws_vpc` — CIDR `10.0.0.0/16`, DNS hostnames enabled, DNS resolution enabled
 
-## Subnets
-- `aws_subnet` x2 public — `10.0.1.0/24` (us-east-1a), `10.0.2.0/24` (us-east-1b), `map_public_ip_on_launch = true`
-- `aws_subnet` x2 private — `10.0.3.0/24` (us-east-1a), `10.0.4.0/24` (us-east-1b)
+## Public Subnets (ECS runs here with public IPs)
+- `aws_subnet` x2 — `10.0.1.0/24` (us-east-1a), `10.0.2.0/24` (us-east-1b)
+- `map_public_ip_on_launch = true` — ECS tasks get public IPs and reach AWS services directly
 
-## Internet & NAT Gateway
+## Internet Gateway
 - `aws_internet_gateway` — attached to VPC
-- `aws_eip` — for NAT Gateway (one per AZ is ideal but one is sufficient for capstone)
-- `aws_nat_gateway` — in public subnet us-east-1a, uses EIP above
-
-## Route Tables
-- `aws_route_table` public — route `0.0.0.0/0` → internet gateway
-- `aws_route_table_association` x2 — associate public route table with both public subnets
-- `aws_route_table` private — route `0.0.0.0/0` → NAT gateway
-- `aws_route_table_association` x2 — associate private route table with both private subnets
+- `aws_route_table` — route `0.0.0.0/0` → internet gateway
+- `aws_route_table_association` x2 — associate route table with both subnets
 
 ## Security Groups
-- `aws_security_group` alb — two inbound rules:
-  - 443 from `var.alerting_tool_cidrs` (alerting tools posting to `/analyse` — capstone: developer IP, prod: alerting tool published CIDRs)
-  - 443 from `0.0.0.0/0` (engineers accessing Cognito-protected routes from internet)
-  - All outbound to ECS security group
-- `aws_security_group` ecs — inbound 8000 from ALB security group only, all outbound
-- `aws_security_group` lambda — no inbound, all outbound
-- `aws_security_group` vpc_endpoints — inbound 443 from VPC CIDR, all outbound
+- `aws_security_group` alb — inbound 443 from `0.0.0.0/0`, outbound all to ECS security group
+- `aws_security_group` ecs — inbound 8000 from ALB security group only, outbound all
+- `aws_security_group` lambda — no inbound, outbound all
 
 ## Application Load Balancer
-- `aws_lb` — internet-facing (`internal = false`), type application, in both public subnets, ALB security group
-- `aws_lb_target_group` — port 8000, protocol HTTP, target type IP (required for Fargate), health check path `/health`
-- `aws_lb_listener` — port 443 HTTPS, two listener rules:
-  - Rule 1: path `/analyse`, method POST — IP allowlist check, forward to ECS target group (no Cognito)
-  - Rule 2: all other paths — Cognito authenticate action (added by auth/ module), forward to ECS target group after successful auth
+- `aws_lb` — internet-facing (`internal = false`), type application, in both subnets, ALB security group
+- `aws_lb_target_group` — port 8000, protocol HTTP, target type IP, health check path `/health`
+- `aws_lb_listener` — port 443 HTTPS, forward all traffic to ECS target group
 
-**Variable: `alerting_tool_cidrs`** — list of CIDR blocks for alerting tool source IPs. For capstone set to `["YOUR_IP/32"]`. In production replace with published IP ranges from PagerDuty, Grafana Cloud, or Datadog.
+## ACM Certificate
+- `aws_acm_certificate` — for the ALB HTTPS listener. Use DNS validation.
+- `aws_acm_certificate_validation` — validate via Route53 or manual DNS record
 
-## VPC Endpoints (keep traffic within AWS network)
-- `aws_vpc_endpoint` bedrock-runtime — Interface type, private DNS enabled
-- `aws_vpc_endpoint` ecr-api — Interface type, private DNS enabled
-- `aws_vpc_endpoint` ecr-dkr — Interface type, private DNS enabled
-- `aws_vpc_endpoint` s3 — Gateway type, associated with private route table
-- `aws_vpc_endpoint` dynamodb — Gateway type, associated with private route table
-- `aws_vpc_endpoint` sqs — Interface type, private DNS enabled
-- `aws_vpc_endpoint` secretsmanager — Interface type, private DNS enabled
-- `aws_vpc_endpoint` ssm — Interface type, private DNS enabled
-- `aws_vpc_endpoint` logs (CloudWatch) — Interface type, private DNS enabled
-- `aws_vpc_endpoint` xray — Interface type, private DNS enabled
-
-All Interface-type endpoints use the `vpc_endpoints` security group and are placed in private subnets.
-
-## Outputs (consumed by other modules)
+## Outputs
 - `vpc_id`
-- `public_subnet_ids` (list)
-- `private_subnet_ids` (list)
+- `subnet_ids` (list of both public subnets)
 - `alb_security_group_id`
 - `ecs_security_group_id`
 - `lambda_security_group_id`
 - `alb_arn`
 - `alb_target_group_arn`
 - `alb_listener_arn`
+- `alb_dns_name` — the public DNS name engineers and alerting tools use to reach the system

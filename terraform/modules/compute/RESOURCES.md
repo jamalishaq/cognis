@@ -66,7 +66,8 @@
 - Additional inline policy for ECR pull and CloudWatch logs
 
 ## ECS Service
-- `aws_ecs_service` — launch type FARGATE, in private subnets, ECS security group
+- `aws_ecs_service` — launch type FARGATE, in **public subnets** (capstone — no private subnets), ECS security group
+- `assign_public_ip = true` — required for ECS to reach AWS services without NAT Gateway
 - Load balancer: target group from networking module, container name and port 8000
 - Desired count: 1 (both environments — auto scaling handles prod)
 - `deployment_minimum_healthy_percent = 50`, `deployment_maximum_percent = 200`

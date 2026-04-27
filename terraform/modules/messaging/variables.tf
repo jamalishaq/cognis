@@ -2,9 +2,9 @@ variable "environment" {
   type = string
 }
 
-variable "private_subnet_ids" {
+variable "subnet_ids" {
   type        = list(string)
-  description = "Private subnet IDs for Lambda VPC config"
+  description = "Public subnet IDs for Lambda VPC config"
 }
 
 variable "lambda_security_group_id" {

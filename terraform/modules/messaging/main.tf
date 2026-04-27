@@ -139,8 +139,15 @@ resource "aws_lambda_function" "notify" {
   filename         = data.archive_file.notify.output_path
   source_code_hash = data.archive_file.notify.output_base64sha256
 
+  environment {
+    variables = {
+      SES_SENDER_ADDRESS = "noreply@cognis.internal"
+      ENVIRONMENT        = var.environment
+    }
+  }
+
   vpc_config {
-    subnet_ids         = var.private_subnet_ids
+    subnet_ids         = var.subnet_ids
     security_group_ids = [var.lambda_security_group_id]
   }
 
@@ -205,7 +212,7 @@ resource "aws_iam_role_policy" "ingest_lambda" {
       {
         Effect   = "Allow"
         Action   = "bedrock:InvokeModel"
-        Resource = "arn:aws:bedrock:${data.aws_region.current.id}::foundation-model/cohere.embed-english-v3"
+        Resource = "arn:aws:bedrock:${data.aws_region.current.id}::foundation-model/cohere.embed-v4:0"
       },
       {
         Effect   = "Allow"
@@ -220,11 +227,6 @@ resource "aws_iam_role_policy" "ingest_lambda" {
           "logs:PutLogEvents"
         ]
         Resource = "arn:aws:logs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:log-group:/cognis/${var.environment}/lambda/ingest:*"
-      },
-      {
-        Effect = "Allow"
-        Action = ["ssm:GetParameter", "ssm:GetParametersByPath"]
-        Resource = "arn:aws:ssm:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:parameter/cognis/${var.environment}/*"
       },
       {
         Effect = "Allow"
@@ -253,11 +255,12 @@ resource "aws_lambda_function" "ingest" {
   environment {
     variables = {
       ENVIRONMENT = var.environment
+      AWS_REGION  = data.aws_region.current.id
     }
   }
 
   vpc_config {
-    subnet_ids         = var.private_subnet_ids
+    subnet_ids         = var.subnet_ids
     security_group_ids = [var.lambda_security_group_id]
   }
 

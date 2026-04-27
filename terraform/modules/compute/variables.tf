@@ -6,9 +6,9 @@ variable "vpc_id" {
   type = string
 }
 
-variable "private_subnet_ids" {
+variable "subnet_ids" {
   type        = list(string)
-  description = "Private subnet IDs for ECS Fargate tasks"
+  description = "Public subnet IDs for ECS Fargate tasks"
 }
 
 variable "ecs_security_group_id" {
@@ -35,10 +35,6 @@ variable "chat_messages_table_arn" {
 }
 
 variable "corpus_chunks_table_arn" {
-  type = string
-}
-
-variable "counters_table_arn" {
   type = string
 }
 

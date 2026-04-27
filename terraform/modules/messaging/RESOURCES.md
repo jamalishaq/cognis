@@ -28,11 +28,11 @@
 - `aws_lambda_function` notify — function name `cognis-${var.environment}-notify`
 - Runtime: python3.12
 - Handler: `notify.handler`
-- Source: `backend/app/lambdas/notify.py` packaged as zip
+- Source: `backend/app/notifications/notify.py` packaged as zip
 - Timeout: 30 seconds
 - Memory: 128 MB
 - Environment variables: `SES_SENDER_ADDRESS`, `ENVIRONMENT`
-- VPC config: private subnets, Lambda security group
+- VPC config: public subnets, Lambda security group
 
 ### Notification Lambda IAM Role
 - `aws_iam_role` notify_lambda — trust policy allows `lambda.amazonaws.com`
@@ -49,11 +49,11 @@
 - `aws_lambda_function` ingest — function name `cognis-${var.environment}-ingest`
 - Runtime: python3.12
 - Handler: `ingest.handler`
-- Source: `backend/app/lambdas/ingest.py` packaged as zip
+- Source: `backend/app/notifications/ingest.py` packaged as zip
 - Timeout: 300 seconds — embedding + storing can take time
 - Memory: 256 MB
 - Environment variables: `ENVIRONMENT`, `AWS_REGION`
-- VPC config: private subnets, Lambda security group
+- VPC config: public subnets, Lambda security group
 
 ### Corpus Ingestion Lambda IAM Role
 - `aws_iam_role` ingest_lambda — trust policy allows `lambda.amazonaws.com`

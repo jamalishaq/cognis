@@ -33,8 +33,7 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  environment     = "dev"
-  frontend_domain = "dev.cognis.internal"
+  environment = "dev"
 
   vector_index_arn = "arn:aws:s3vectors:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:bucket/${module.storage.vector_bucket_name}/index/${module.storage.vector_index_name}"
 }
@@ -42,9 +41,8 @@ locals {
 module "networking" {
   source = "../../modules/networking"
 
-  environment         = local.environment
-  certificate_arn     = var.certificate_arn
-  alerting_tool_cidrs = var.alerting_tool_cidrs
+  environment     = local.environment
+  certificate_arn = var.certificate_arn
 }
 
 module "storage" {
@@ -58,7 +56,7 @@ module "messaging" {
   source = "../../modules/messaging"
 
   environment              = local.environment
-  private_subnet_ids       = module.networking.private_subnet_ids
+  subnet_ids               = module.networking.subnet_ids
   lambda_security_group_id = module.networking.lambda_security_group_id
   incidents_table_arn      = module.storage.incidents_table_arn
   corpus_chunks_table_arn  = module.storage.corpus_chunks_table_arn
@@ -93,7 +91,7 @@ module "secrets" {
   source = "../../modules/secrets"
 
   environment                   = local.environment
-  frontend_domain               = local.frontend_domain
+  frontend_domain               = "cognis-dev-frontend.s3-website-us-east-1.amazonaws.com"
   notification_queue_url        = module.messaging.notification_queue_url
   ingestion_queue_url           = module.messaging.ingestion_queue_url
   vector_bucket_name            = module.storage.vector_bucket_name
@@ -105,11 +103,7 @@ module "secrets" {
 module "auth" {
   source = "../../modules/auth"
 
-  environment          = local.environment
-  frontend_domain      = local.frontend_domain
-  alb_listener_arn     = module.networking.alb_listener_arn
-  alb_target_group_arn = module.networking.alb_target_group_arn
-  deletion_protection  = false
+  environment = local.environment
 }
 
 module "compute" {
@@ -117,14 +111,13 @@ module "compute" {
 
   environment                 = local.environment
   vpc_id                      = module.networking.vpc_id
-  private_subnet_ids          = module.networking.private_subnet_ids
+  subnet_ids                  = module.networking.subnet_ids
   ecs_security_group_id       = module.networking.ecs_security_group_id
   alb_target_group_arn        = module.networking.alb_target_group_arn
   fastapi_log_group_name      = module.observability.fastapi_log_group_name
   incidents_table_arn         = module.storage.incidents_table_arn
   chat_messages_table_arn     = module.storage.chat_messages_table_arn
   corpus_chunks_table_arn     = module.storage.corpus_chunks_table_arn
-  counters_table_arn          = module.storage.counters_table_arn
   vector_index_arn            = local.vector_index_arn
   notification_queue_arn      = module.messaging.notification_queue_arn
   ingestion_queue_arn         = module.messaging.ingestion_queue_arn
@@ -137,4 +130,3 @@ module "compute" {
   max_capacity                = 1
   enable_autoscaling          = false
 }
-

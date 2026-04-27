@@ -1837,51 +1837,49 @@ Each Lambda only has permission to its own queue. FastAPI has `SendMessage` on b
 
 ## VPC & Networking
 
----
+**Decision: Simplified networking for capstone — no VPC Endpoints, no NAT Gateway, no private subnets, no IP restrictions**
 
-### Structure
+All previous networking decisions (private subnets, VPC Endpoints, NAT Gateway, IP allowlisting for `/analyse`, Cognito auth on ALB) are deferred to a future production implementation. For the capstone the goal is a working system, not a hardened one.
+
+**Capstone setup:**
 
 ```
-VPC (10.0.0.0/16)
+Internet
     │
-    ├── Public Subnets (2 AZs)
-    │     ├── us-east-1a: 10.0.1.0/24   ← ALB, NAT Gateway
-    │     └── us-east-1b: 10.0.2.0/24   ← ALB
+    ▼
+Internet-facing ALB (port 443, open to all)
     │
-    └── Private Subnets (2 AZs)
-          ├── us-east-1a: 10.0.3.0/24   ← ECS Fargate, Lambda
-          └── us-east-1b: 10.0.4.0/24   ← ECS Fargate, Lambda
+    ▼
+ECS Fargate (public subnet, public IP)
+    │
+    ▼
+AWS Services (Bedrock, DynamoDB, SQS, S3 Vectors, SES)
+via public endpoints — no VPC Endpoints needed
 ```
 
-Two AZs for basic high availability — if one AZ goes down, the ALB routes traffic to the other and ECS runs tasks in the surviving AZ.
+- **Single public subnet** — ECS tasks run in a public subnet with a public IP. They reach AWS services directly over the internet.
+- **No NAT Gateway** — not needed since ECS has a public IP.
+- **No VPC Endpoints** — all AWS service calls go over public endpoints. Adds cost at scale but negligible for capstone.
+- **No IP allowlisting on `/analyse`** — open to all for ease of testing with Postman and simulated alerts.
+- **No Cognito on ALB** — `AUTH_DISABLED=true` equivalent in deployed environment for capstone. Engineers access all endpoints directly.
+- **S3 frontend** — public read, accessed directly via S3 static website URL.
 
----
-
-### Outbound Traffic — VPC Endpoints + NAT Gateway
-
-ECS Fargate tasks run in private subnets with no public IP. They need to reach AWS services (Bedrock, ECR, DynamoDB, SQS, S3, Secrets Manager, Parameter Store, CloudWatch, X-Ray).
-
-**Decision: VPC Endpoints for AWS services + NAT Gateway as fallback**
-
-| | NAT Gateway | VPC Endpoints |
-|---|---|---|
-| Cost | ~$0.045/hr + data transfer | ~$0.01/hr per endpoint |
-| Covers | Everything (internet + AWS) | AWS services only |
-| Security | Traffic leaves VPC | Traffic stays within AWS network |
-
-VPC Endpoints are created for all AWS services FastAPI and Lambda need — traffic stays within the AWS network and never traverses the public internet. A NAT Gateway is retained for any outbound traffic not covered by endpoints.
-
-**VPC Endpoints provisioned:** Bedrock, ECR, S3, DynamoDB, SQS, Secrets Manager, Parameter Store, CloudWatch, X-Ray
-
----
-
-### Security Groups
+**Security groups (simplified):**
 
 | Resource | Inbound | Outbound |
 |---|---|---|
-| ALB | 443 from VPC CIDR | All to ECS security group |
-| ECS Fargate | 8000 from ALB security group only | All (to AWS services via VPC endpoints) |
-| Lambda | No inbound | All (to DynamoDB, SQS, SES, S3 Vectors) |
+| ALB | 443 from `0.0.0.0/0` | All to ECS |
+| ECS | 8000 from ALB security group | All |
+| Lambda | No inbound | All |
+
+**Future implementation (production):**
+- Private subnets for ECS and Lambda
+- NAT Gateway for outbound traffic
+- VPC Endpoints for all AWS services (Bedrock, ECR, S3, DynamoDB, SQS, Secrets Manager, Parameter Store, CloudWatch, X-Ray)
+- Two AZs for high availability
+- IP allowlisting on `/analyse` using alerting tool published CIDR ranges
+- Cognito authentication enforced on ALB for all engineer-facing endpoints
+- Internal ALB for engineer routes, separate public ALB listener rule for `/analyse` only
 
 ---
 
