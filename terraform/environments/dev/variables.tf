@@ -28,5 +28,6 @@ variable "active_notification_providers" {
 
 variable "alerting_tool_cidrs" {
   type        = list(string)
+  default       = ["0.0.0.0/0"]
   description = "CIDR blocks for alerting tool IPs allowed to POST /analyse (e.g. [\"YOUR_IP/32\"])"
 }

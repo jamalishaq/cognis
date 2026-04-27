@@ -15,13 +15,17 @@ An AI system that monitors infrastructure alerts, retrieves relevant runbooks an
 | `/incidents/{id}/history` | GET | Retrieves full conversation history for an incident — used by `/chat` to maintain context across turns |
 | `/incidents/{id}/resolve` | POST | Accepts resolution details from engineer, updates incident record in DynamoDB, triggers async corpus ingestion |
 
-**Decision: `/analyse` as webhook**
+**Decision: `/analyse` as webhook — publicly accessible, IP allowlisted**
 
-Alerting tools like PagerDuty and Grafana POST directly to `/analyse` when an alert fires. This is the simplest integration pattern and sufficient for the project scope.
+Alerting tools like PagerDuty and Grafana POST directly to `/analyse` when an alert fires. These are external services on the public internet — they cannot reach an internal ALB. The ALB is therefore internet-facing. `/analyse` is protected by an IP allowlist at the ALB security group level — only traffic from known alerting tool CIDR ranges is permitted.
 
-**Future improvement — SQS queue:** Place an SQS queue in front of `/analyse` so that if the service is temporarily unavailable or overwhelmed, alerts are not lost. SQS adds retry guarantees and decouples the alerting tool from the system — the endpoint drains the queue at its own pace rather than handling bursts directly.
+For the capstone, the allowlist contains the developer's own IP address since alerts are simulated locally. In production, replace with the published IP ranges of the alerting tools in use (PagerDuty, Grafana Cloud, Datadog each publish their webhook source IPs).
 
-**Future improvement — Rate limiting:** Rate limiting on `/analyse` was considered to protect against alert storms overwhelming Bedrock rate limits. It was deferred for three reasons: alert storms are simulated in the capstone so bursts won't occur in practice; error handling already retries gracefully on Bedrock throttles; and the SQS queue improvement above is the more correct production solution — it absorbs bursts naturally without dropping requests. If SQS is not implemented, `slowapi` on the `/analyse` endpoint is the lightweight addition needed.
+All other endpoints are protected by Cognito authentication enforced at the ALB — engineers must be logged in to reach `/chat`, `/incidents/*`, and `/resolve`.
+
+**Future improvement — SQS queue:** Place an SQS queue in front of `/analyse` so that if the service is temporarily unavailable or overwhelmed, alerts are not lost. SQS adds retry guarantees and decouples the alerting tool from the system.
+
+**Future improvement — Rate limiting:** `slowapi` on the `/analyse` endpoint is the lightweight addition needed if alert storm protection is required without SQS.
 
 ---
 
@@ -165,26 +169,40 @@ FastAPI stores incident brief
 
 ### Frontend Deployment
 
-The frontend is a static app (HTML, CSS, JS) hosted on an S3 bucket, accessed by engineers via an internal ALB.
+The frontend is a static app (HTML, CSS, JS) hosted on an S3 bucket, served publicly over the internet. Engineers access it from any browser — no VPN required.
 
-**Decision: S3 + Internal ALB, no CloudFront**
+**Decision: S3 with public read + Internet-facing ALB, no CloudFront**
 
-CloudFront is a CDN — its value is edge caching across regions to reduce latency for geographically distributed users. That benefit does not apply here. This is an internal tool accessed by on-call engineers on the same corporate network or VPN. What matters is access control and network isolation, not global distribution.
+The original decision was an internal ALB accessible only via VPN. This was revised because:
+- The capstone needs to be demoed and accessed without VPN infrastructure
+- The alerting tool integration requires `/analyse` to be publicly reachable anyway
+- Security is handled at the authentication layer (Cognito) not the network layer
 
-| | S3 + CloudFront | S3 + Internal ALB |
-|---|---|---|
-| Public internet reachable | Yes | No |
-| Access control | Cognito / signed URLs | VPC security groups |
-| Geo-distribution benefit | Yes | Not needed |
-| Complexity | Lower | Higher |
+CloudFront was considered but ruled out for capstone scope — it adds certificate, domain, and distribution setup complexity without meaningful benefit for a small team. The ALB handles HTTPS directly via ACM certificate.
 
-The Internal ALB sits inside a private VPC subnet. Engineers reach the frontend only via VPN or the internal network — the app is never reachable from the public internet.
+**How the frontend makes API calls:**
+
+S3 serves the static React files to the engineer's browser. The browser then makes API calls directly to the internet-facing ALB using the API base URL configured in the React app. S3 itself never makes requests to the ALB — the browser does. This means the ALB CORS configuration must include the S3 bucket URL as an allowed origin so the browser does not block cross-origin API calls.
+
+```
+Engineer's browser
+    │
+    ├──→ S3 bucket (GET static files — HTML, CSS, JS)
+    │
+    └──→ Internet-facing ALB (API calls from React app running in browser)
+              ├── POST /analyse    → IP allowlisted (alerting tool CIDRs)
+              └── All other paths → Cognito auth required
+```
+
+**S3 bucket:** Public read access enabled for static files only — no sensitive data is served from S3, only HTML/CSS/JS. The bucket does not need to be private since it only contains the compiled frontend bundle.
+
+**Future improvement:** Add CloudFront in front of S3 for caching and a custom domain if the system is adopted more broadly.
 
 ---
 
-### API Gateway vs Internal ALB Direct
+### API Gateway vs Internet-facing ALB Direct
 
-**Decision: Internal ALB direct to ECS Fargate, no API Gateway**
+**Decision: Internet-facing ALB direct to ECS Fargate, no API Gateway**
 
 API Gateway sits in front of a compute layer and adds cross-cutting capabilities. Two options were considered:
 
@@ -197,10 +215,11 @@ API Gateway sits in front of a compute layer and adds cross-cutting capabilities
 | Throttling per endpoint | ❌ | ✅ |
 | Cost | Lower | Additional |
 
-API Gateway is unnecessary for this system because:
-- Auth is handled at the network level via VPC — only engineers on the internal network or VPN can reach the ALB
-- Rate limiting is not a concern with a small on-call team
+API Gateway is unnecessary because:
+- Cognito on the ALB handles authentication for all engineer-facing endpoints
+- `/analyse` is protected by IP allowlisting at the security group level
 - Request validation, routing, and serialisation are handled by FastAPI internally
+- Rate limiting is deferred as a future improvement
 
 **What FastAPI handles directly:**
 - **Request validation** — Pydantic models validate every incoming request payload, rejecting malformed inputs before they reach the pipeline
@@ -209,7 +228,7 @@ API Gateway is unnecessary for this system because:
 - **Error handling** — HTTP exceptions and pipeline errors are caught and returned as structured error responses
 - **Streaming** — `/chat` responses stream tokens back to the client as they are generated, keeping perceived latency low
 
-**Future improvement:** If the system is ever exposed externally or becomes multi-tenant, API Gateway would be the right addition for per-client auth and throttling.
+**Future improvement:** If the system is ever multi-tenant or needs per-client throttling, API Gateway is the right addition.
 
 
 
@@ -807,23 +826,26 @@ All secrets are injected at runtime by ECS via IAM — the container has an IAM 
 
 ## Authentication & Authorization
 
-**Decision: AWS Cognito User Pool**
+**Decision: AWS Cognito User Pool with internet-facing ALB**
 
-Network-level access via VPC + Internal ALB ensures only engineers on the corporate network or VPN can reach the app. However, network-level access alone does not distinguish between individual engineers — anyone on the VPN could access the system. For an incident platform surfacing production infrastructure details, application-level authentication is required.
+The system is publicly accessible over the internet — no VPN required. Security is enforced at the authentication layer via Cognito, not at the network layer. The ALB is internet-facing with two distinct access rules:
 
-| | AWS Cognito | Auth0 | Network only |
-|---|---|---|---|
-| AWS native | ✅ | ❌ | N/A |
-| ALB integration | ✅ Built-in | ❌ Manual | N/A |
-| Cost | Free up to 50K MAU | Free tier limited | Free |
-| Setup complexity | Medium | Low | None |
-| Acceptable for prod | ✅ | ✅ | ❌ |
+| Endpoint | Access rule |
+|---|---|
+| `POST /analyse` | IP allowlisted — alerting tool CIDRs only (or developer IP for capstone) |
+| All other endpoints | Cognito auth required — valid JWT must be present |
 
-Cognito integrates directly with the Internal ALB via built-in authentication rules — the ALB enforces login before any request reaches the React app or FastAPI, with no auth code needed in the application layer.
+Cognito integrates directly with the ALB via built-in authentication rules — the ALB enforces login before any request reaches FastAPI or the React app, with no auth code needed in the application layer.
 
 **Auth flow:**
 ```
-Engineer opens app
+Engineer opens app (from S3 URL)
+    │
+    ▼
+Browser downloads React app from S3
+    │
+    ▼
+React app makes API call to ALB
     │
     ▼
 ALB checks for valid Cognito session
@@ -834,20 +856,27 @@ ALB checks for valid Cognito session
     │                   │
     │               Cognito issues JWT
     │                   │
-    └── Valid session → request passes through to app
+    └── Valid session → request passes through to FastAPI
+
+Alerting tool POSTs to /analyse
+    │
+    ▼
+ALB checks source IP against allowlist
+    │
+    ├── IP allowed → passes through to FastAPI (no Cognito check)
+    └── IP not allowed → 403 rejected at ALB
 ```
 
-FastAPI receives the JWT in request headers and can extract engineer identity (email, group membership) for any downstream logic.
+FastAPI receives the JWT in request headers for Cognito-protected endpoints and can extract engineer identity (email, group membership) for any downstream logic.
 
 **User management: Cognito User Pool**
-
-Engineers log in with accounts manually created in the Cognito User Pool. This is sufficient for a small closed team.
+Engineers log in with accounts manually created in the Cognito User Pool.
 
 **Authorization:** All authenticated engineers have the same access level for now.
 
 **Future improvements:**
-- Federate Cognito with an existing organisational IdP (Google Workspace, Microsoft Entra) so engineers log in with their existing accounts
-- Role-based access control (RBAC) — e.g. read-only vs admin roles
+- Federate Cognito with an existing organisational IdP (Google Workspace, Microsoft Entra)
+- Role-based access control (RBAC) — read-only vs admin roles
 
 ---
 
@@ -1180,7 +1209,7 @@ Tests user interactions — clicking the resolve button, submitting the resoluti
 
 ## CORS Configuration
 
-When the React frontend (served from S3) makes requests to the FastAPI server (on ECS via ALB), the browser blocks them by default because the two are on different origins. CORS tells the browser which origins are permitted to call the API. Without it every API call from the frontend fails in the browser regardless of whether the request reaches the server.
+When the React frontend (served from S3) makes requests to the FastAPI server (on ECS via ALB), the browser blocks them by default because the two are on different origins — S3 bucket URL and ALB URL are different domains. CORS tells the browser which origins are permitted to call the API. Without it every API call from the frontend fails in the browser regardless of whether the request reaches the server.
 
 **Configured on FastAPI using built-in CORS middleware:**
 
@@ -1198,7 +1227,7 @@ app.add_middleware(
 
 | Setting | Decision | Why |
 |---|---|---|
-| `allow_origins` | Explicit list per environment | Never wildcard — see below |
+| `allow_origins` | Explicit S3 bucket URL per environment | Never wildcard — see below |
 | `allow_credentials` | True | Cognito JWT is sent in the Authorization header |
 | `allow_methods` | GET, POST only | The API only uses these two methods |
 | `allow_headers` | Authorization, Content-Type | Authorization carries the JWT, Content-Type is needed for JSON POST bodies |
@@ -1207,14 +1236,16 @@ app.add_middleware(
 
 | Environment | Allowed origin |
 |---|---|
-| Dev | `https://dev.incident-platform.internal` |
-| Prod | `https://incident-platform.internal` |
+| Dev | `https://cognis-dev-frontend.s3-website-us-east-1.amazonaws.com` |
+| Prod | `https://cognis-prod-frontend.s3-website-us-east-1.amazonaws.com` |
 
-Allowed origins are loaded from AWS Parameter Store at runtime — the same Docker image runs in both environments with different CORS settings injected. Origins are never hardcoded in the application.
+Allowed origins are the S3 static website hosting URLs. They are loaded from AWS Parameter Store at runtime — the same Docker image runs in both environments with different CORS settings injected. Origins are never hardcoded in the application.
 
 **`allow_origins=["*"]` is never used — not even in dev.**
 
-Wildcard CORS defeats the purpose of network-level access control. If the ALB is ever misconfigured and the app becomes reachable outside the VPN, wildcard CORS means any website can make requests to the API on behalf of a logged-in engineer.
+Wildcard CORS means any website on the internet can make requests to the API on behalf of a logged-in engineer — this is a serious security risk even with Cognito auth in place.
+
+**Note on alerting tools and CORS:** The `/analyse` endpoint is called server-to-server by alerting tools — not from a browser. CORS does not apply to server-to-server requests. The security for `/analyse` is the ALB IP allowlist, not CORS.
 
 ---
 
@@ -1494,8 +1525,8 @@ DynamoDB is the content — it gives you what those chunks say.
 | Streaming | Native fetch + ReadableStream |
 | State management | Zustand |
 | Data fetching | TanStack Query |
-| Frontend hosting | Amazon S3 |
-| Frontend access | Internal ALB (private VPC) |
+| Frontend hosting | Amazon S3 (public read — static files only) |
+| Frontend access | Internet-facing ALB (Cognito auth) |
 | API server | FastAPI on ECS Fargate |
 | Data validation | Pydantic (FastAPI built-in) |
 | LLM orchestration | Native Bedrock SDK (boto3) |
@@ -1653,8 +1684,8 @@ This script:
 | Streaming | Native fetch + ReadableStream |
 | State management | Zustand |
 | Data fetching | TanStack Query |
-| Frontend hosting | Amazon S3 |
-| Frontend access | Internal ALB (private VPC) |
+| Frontend hosting | Amazon S3 (public read — static files only) |
+| Frontend access | Internet-facing ALB (Cognito auth) |
 | API server | FastAPI on ECS Fargate |
 | Data validation | Pydantic (FastAPI built-in) |
 | LLM orchestration | Native Bedrock SDK (boto3) |
