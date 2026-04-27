@@ -7,8 +7,8 @@ app = FastAPI(title="Cognis", version="0.1.0")
 
 _ALLOWED_ORIGINS = {
     "local": ["http://localhost:5173", "http://localhost:3000"],
-    "dev": ["https://dev.cognis.internal"],
-    "prod": ["https://cognis.internal"],
+    "dev": [settings.frontend_origin] if settings.frontend_origin else [],
+    "prod": [settings.frontend_origin] if settings.frontend_origin else [],
 }
 
 app.add_middleware(

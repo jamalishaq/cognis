@@ -112,18 +112,10 @@ resource "aws_ssm_parameter" "ses_recipient_addresses" {
   tags = { Environment = var.environment }
 }
 
-resource "aws_ssm_parameter" "allowed_origins" {
-  name  = "/cognis/${var.environment}/cors/allowed-origins"
+resource "aws_ssm_parameter" "frontend_origin" {
+  name  = "/cognis/${var.environment}/frontend-origin"
   type  = "String"
-  value = "https://${var.frontend_domain}"
-
-  tags = { Environment = var.environment }
-}
-
-resource "aws_ssm_parameter" "frontend_domain" {
-  name  = "/cognis/${var.environment}/frontend-domain"
-  type  = "String"
-  value = var.frontend_domain
+  value = "http://${var.frontend_domain}"
 
   tags = { Environment = var.environment }
 }
