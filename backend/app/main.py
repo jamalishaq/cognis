@@ -24,3 +24,4 @@ app.include_router(analyse.router)
 app.include_router(chat.router)
 app.include_router(incidents.router)
 app.include_router(resolve.router)
+
