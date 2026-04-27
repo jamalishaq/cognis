@@ -150,6 +150,6 @@ resource "aws_s3vectors_index" "corpus" {
   vector_bucket_name = aws_s3vectors_vector_bucket.main.vector_bucket_name
   index_name         = "corpus-index"
   data_type          = "float32"
-  dimension          = 1024
+  dimension          = 1536
   distance_metric    = "cosine"
 }
