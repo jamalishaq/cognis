@@ -10,42 +10,38 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
-
-    # --- Always from environment / ECS task definition ---
+    
     environment: Literal["local", "dev", "prod"] = "local"
     aws_region: str = "us-east-1"
 
-    # --- Local dev only (empty in deployed environments) ---
+    # --- Local dev only ---
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
     dynamodb_endpoint: str = ""
     sqs_endpoint: str = ""
 
-    # --- Feature flags (set by Terraform per environment in ECS task def) ---
+    # --- Feature flags  ---
     s3_vectors_mock: bool = False
     ses_mode: Literal["send", "log"] = "log"
     auth_disabled: bool = False
 
-    # --- Parameter Store path prefix (set by Terraform in ECS task def) ---
     # e.g. /cognis/dev or /cognis/prod
     ssm_prefix: str = "/cognis/local"
 
     # --- Resolved from Parameter Store in deployed envs, .env.local locally ---
-    # These are populated by _load_from_ssm() below when environment != local
     s3_vectors_bucket_name: str = ""
     s3_vectors_index_name: str = ""
     notification_queue_url: str = ""
     ingestion_queue_url: str = ""
-    reasoning_model_id: str = "claude-sonnet-4-6"
-    chat_model_id: str = "claude-sonnet-4-6"
-    triage_model_id: str = "claude-haiku-4-5-20251001"
-    judge_model_id: str = "claude-haiku-4-5-20251001"
-    embedding_model_id: str = "cohere.embed-english-v4:0"
-    rerank_model_id: str = "cohere.rerank-v3-5:0"
+    reasoning_model_id: str = ""
+    chat_model_id: str = ""
+    triage_model_id: str = ""
+    judge_model_id: str = ""
+    embedding_model_id: str = ""
+    rerank_model_id: str = ""
     active_notification_providers: str = "ses"
     ses_from_email: str = ""
     ses_to_emails: str = ""
-    frontend_origin: str = ""
 
     @property
     def is_local(self) -> bool:
@@ -79,10 +75,6 @@ _SSM_PARAM_MAP = {
 
 
 def _load_from_ssm(settings: Settings) -> Settings:
-    """
-    Fetches config from Parameter Store in batch and overrides settings fields.
-    Only runs in dev/prod — local uses .env.local values directly.
-    """
     if settings.is_local:
         return settings
 
@@ -116,13 +108,7 @@ def _load_from_ssm(settings: Settings) -> Settings:
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """
-    Returns the application settings. Cached after first call.
-    In dev/prod, SSM parameters override .env.local defaults.
-    """
     base = Settings()
     return _load_from_ssm(base)
 
-
-# Module-level singleton for convenience
 settings = get_settings()

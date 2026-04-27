@@ -22,7 +22,7 @@ Resolved incidents are automatically ingested into the knowledge base, making th
 ## Architecture
 
 ```
-/analyse endpoint                    /chat endpoint
+/analyse endpoint or SQS             /chat endpoint
         │                                  │
         ▼                                  ▼
 Normaliser                           Chat Model
