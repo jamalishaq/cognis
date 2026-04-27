@@ -118,6 +118,7 @@ module "compute" {
   incidents_table_arn         = module.storage.incidents_table_arn
   chat_messages_table_arn     = module.storage.chat_messages_table_arn
   corpus_chunks_table_arn     = module.storage.corpus_chunks_table_arn
+  counters_table_arn          = module.storage.counters_table_arn
   vector_index_arn            = local.vector_index_arn
   notification_queue_arn      = module.messaging.notification_queue_arn
   ingestion_queue_arn         = module.messaging.ingestion_queue_arn

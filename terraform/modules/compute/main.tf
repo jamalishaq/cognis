@@ -101,12 +101,14 @@ resource "aws_iam_role_policy" "ecs_task" {
           "dynamodb:GetItem",
           "dynamodb:PutItem",
           "dynamodb:UpdateItem",
-          "dynamodb:Query"
+          "dynamodb:Query",
+          "dynamodb:Scan"
         ]
         Resource = [
           var.incidents_table_arn,
           var.chat_messages_table_arn,
-          var.corpus_chunks_table_arn
+          var.corpus_chunks_table_arn,
+          var.counters_table_arn
         ]
       },
       {

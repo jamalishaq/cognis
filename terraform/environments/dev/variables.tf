@@ -16,7 +16,7 @@ variable "oncall_email" {
 
 variable "ses_recipient_addresses" {
   type        = string
-  default     = "toyinjamal@gmail.com"
+  default     = "jamaloflagos@gmail.com"
   description = "Comma-separated SES recipient email addresses"
 }
 

@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 resource "aws_iam_policy" "bedrock_invoke" {
   name        = "cognis-${var.environment}-bedrock-invoke"
   description = "Allows Bedrock model invocation and reranking for Cognis"
@@ -12,7 +14,11 @@ resource "aws_iam_policy" "bedrock_invoke" {
           "arn:aws:bedrock:us-east-1::foundation-model/us.anthropic.claude-haiku-4-5-20251001-v1:0",
           "arn:aws:bedrock:us-east-1::foundation-model/us.anthropic.claude-sonnet-4-6",
           "arn:aws:bedrock:us-east-1::foundation-model/us.cohere.embed-v4:0",
-          "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0"
+          "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0",
+          "arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/us.cohere.embed-v4:0",
+          "arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+          "arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/us.anthropic.claude-sonnet-4-6",
+          "arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/amazon.nova-micro-v1:0"
         ]
       },
       {

@@ -38,6 +38,10 @@ variable "corpus_chunks_table_arn" {
   type = string
 }
 
+variable "counters_table_arn" {
+  type = string
+}
+
 variable "vector_index_arn" {
   type        = string
   description = "S3 Vectors index ARN for QueryVectors IAM permission"
