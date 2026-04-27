@@ -255,7 +255,6 @@ resource "aws_lambda_function" "ingest" {
   environment {
     variables = {
       ENVIRONMENT = var.environment
-      AWS_REGION  = data.aws_region.current.id
     }
   }
 

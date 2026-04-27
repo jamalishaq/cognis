@@ -1,24 +1,3 @@
-# ─── Secrets Manager ───────────────────────────────────────────────────────────
-
-resource "aws_secretsmanager_secret" "langfuse" {
-  name        = "cognis/${var.environment}/langfuse-api-key"
-  description = "Langfuse API key for AI pipeline observability — populate manually after provisioning"
-
-  tags = {
-    Name        = "cognis-${var.environment}-langfuse-api-key"
-    Environment = var.environment
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "langfuse" {
-  secret_id     = aws_secretsmanager_secret.langfuse.id
-  secret_string = "REPLACE_ME"
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
-}
-
 # ─── Parameter Store ───────────────────────────────────────────────────────────
 
 resource "aws_ssm_parameter" "bedrock_region" {

@@ -51,11 +51,6 @@ variable "ingestion_queue_arn" {
   type = string
 }
 
-variable "langfuse_secret_arn" {
-  type        = string
-  description = "Secrets Manager ARN for Langfuse API key"
-}
-
 variable "parameter_store_path_prefix" {
   type        = string
   description = "SSM Parameter Store path prefix (e.g. /cognis/dev)"

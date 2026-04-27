@@ -121,7 +121,6 @@ module "compute" {
   vector_index_arn            = local.vector_index_arn
   notification_queue_arn      = module.messaging.notification_queue_arn
   ingestion_queue_arn         = module.messaging.ingestion_queue_arn
-  langfuse_secret_arn         = module.secrets.langfuse_secret_arn
   parameter_store_path_prefix = module.secrets.parameter_store_path_prefix
   bedrock_invoke_policy_arn   = module.ai.bedrock_invoke_policy_arn
   cpu                         = 512

@@ -30,11 +30,6 @@ output "ingestion_queue_url" {
   value = module.messaging.ingestion_queue_url
 }
 
-output "langfuse_secret_arn" {
-  value     = module.secrets.langfuse_secret_arn
-  sensitive = true
-}
-
 output "dashboard_name" {
   value = module.observability.dashboard_name
 }

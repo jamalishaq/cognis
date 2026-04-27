@@ -24,22 +24,22 @@ resource "aws_ecr_lifecycle_policy" "main" {
     rules = [
       {
         rulePriority = 1
-        description  = "Keep last 10 images"
-        selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = 10
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
         description  = "Delete untagged images after 1 day"
         selection = {
           tagStatus   = "untagged"
           countType   = "sinceImagePushed"
           countUnit   = "days"
           countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 10 images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = { type = "expire" }
       }
@@ -123,11 +123,6 @@ resource "aws_iam_role_policy" "ecs_task" {
         ]
       },
       {
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
-        Resource = var.langfuse_secret_arn
-      },
-      {
         Effect = "Allow"
         Action = [
           "ssm:GetParameter",
@@ -190,11 +185,6 @@ resource "aws_iam_role_policy" "ecs_execution" {
         ]
         Resource = "arn:aws:logs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:log-group:${var.fastapi_log_group_name}:*"
       },
-      {
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
-        Resource = var.langfuse_secret_arn
-      }
     ]
   })
 }
@@ -228,12 +218,6 @@ resource "aws_ecs_task_definition" "main" {
         {
           name  = "SSM_PREFIX"
           value = "/cognis/${var.environment}"
-        }
-      ]
-      secrets = [
-        {
-          name      = "LANGFUSE_API_KEY"
-          valueFrom = var.langfuse_secret_arn
         }
       ]
       logConfiguration = {
