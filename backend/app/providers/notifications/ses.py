@@ -17,13 +17,15 @@ def _compose_subject(incident: IncidentBrief) -> str:
 def _compose_text(incident: IncidentBrief) -> str:
     actions = "\n".join(f"  • {a}" for a in incident.recommended_actions) or "  None"
     runbooks = "\n".join(f"  • {r}" for r in incident.runbook_references) or "  None"
+    link = f"{settings.frontend_origin}/incidents/{incident.incident_id}"
     return (
         f"Incident: {incident.incident_id}\n"
         f"Title:    {incident.title}\n"
         f"Severity: {incident.severity}\n"
         f"Service:  {incident.affected_service}\n"
         f"Class:    {incident.failure_class}\n"
-        f"Created:  {incident.created_at.isoformat()}\n\n"
+        f"Created:  {incident.created_at.isoformat()}\n"
+        f"Link:     {link}\n\n"
         f"Summary\n-------\n{incident.summary}\n\n"
         f"Recommended Actions\n-------------------\n{actions}\n\n"
         f"Runbook References\n------------------\n{runbooks}\n"
@@ -33,6 +35,7 @@ def _compose_text(incident: IncidentBrief) -> str:
 def _compose_html(incident: IncidentBrief) -> str:
     actions_html = "".join(f"<li>{a}</li>" for a in incident.recommended_actions) or "<li>None</li>"
     runbooks_html = "".join(f"<li>{r}</li>" for r in incident.runbook_references) or "<li>None</li>"
+    link = f"{settings.frontend_origin}/incidents/{incident.incident_id}"
     return f"""<!DOCTYPE html>
 <html>
 <body style="font-family:sans-serif;max-width:640px;margin:auto;padding:24px">
@@ -43,6 +46,7 @@ def _compose_html(incident: IncidentBrief) -> str:
     <tr><td><strong>Class</strong></td><td>{incident.failure_class}</td></tr>
     <tr><td><strong>Created</strong></td><td>{incident.created_at.isoformat()}</td></tr>
   </table>
+  <p><a href="{link}" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#c0392b;color:#fff;text-decoration:none;border-radius:4px">View Incident</a></p>
   <h4>Summary</h4>
   <p>{incident.summary}</p>
   <h4>Recommended Actions</h4>
