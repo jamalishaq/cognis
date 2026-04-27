@@ -4,6 +4,9 @@ An AI-powered incident response system that intercepts infrastructure alerts, di
 
 ---
 
+## Note: 
+See `SUMMARY.md` for detailed architectural decisions, model selection benchmarks, and design rationale.
+
 ## Overview
 
 When an alert fires from an alerting tool (Grafana, PagerDuty), the system:
@@ -157,7 +160,7 @@ cognis/
     │     │     │     ├── dynamodb.py
     │     │     │     ├── s3vectors.py
     │     │     │     └── sqs.py
-    │     │     └── notifications/
+    │     │     └── lambdas/
     │     │           ├── notify.py
     │     │           └── ingest.py
     │     ├── tests/
@@ -363,4 +366,4 @@ In deployed environments all config is injected at runtime from AWS Secrets Mana
 
 ## Further Reading
 
-See `DECISIONS.md` for detailed architectural decisions, model selection benchmarks, and design rationale.
+See `SUMMARY.md` for detailed architectural decisions, model selection benchmarks, and design rationale.
