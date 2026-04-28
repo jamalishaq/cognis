@@ -12,7 +12,7 @@ Alerting tool → POST /analyse → Normaliser → Triage → RAG (embed → S3 
 → SQS → Lambda → SES email to engineer
 
 Engineer → opens UI (S3) → GET /incidents/{id} → POST /chat (streaming)
-→ POST /incidents/{id}/resolve → SQS → Lambda → re-embed into corpus
+→ POST /incidents/{id}/resolve → SQS → Lambda → re-embed into knowledge base
 ```
 
 ---
@@ -159,3 +159,4 @@ Single public subnet. ECS has public IP (`assign_public_ip=true`). No NAT Gatewa
 | `corpus.yml` | `/runbooks/**` change | Ingest changed files → evaluate retrieval (fails if Recall@3 < 0.8) |
 
 Dev deploys automatically on merge. Prod requires manual trigger.
+
