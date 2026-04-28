@@ -5,7 +5,7 @@ An AI-powered incident response system that intercepts infrastructure alerts, di
 ---
 
 ## Note: 
-See `SUMMARY.md` for detailed architectural decisions, model selection benchmarks, and design rationale.
+See [SUMMARY.md](SUMMARY.md) for detailed architectural decisions, model selection benchmarks, and design rationale.
 
 ## Overview
 
@@ -366,4 +366,4 @@ In deployed environments all config is injected at runtime from AWS Secrets Mana
 
 ## Further Reading
 
-See `SUMMARY.md` for detailed architectural decisions, model selection benchmarks, and design rationale.
+See [SUMMARY.md](SUMMARY.md) for detailed architectural decisions, model selection benchmarks, and design rationale.
