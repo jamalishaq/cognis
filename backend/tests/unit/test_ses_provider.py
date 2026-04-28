@@ -8,7 +8,7 @@ import pytest
 
 from app.models.incident import IncidentBrief
 from app.providers.notifications.ses import (
-    SESNotificationProvider,
+    SESProvider,
     _compose_html,
     _compose_subject,
     _compose_text,
@@ -126,13 +126,9 @@ def test_send_log_mode_does_not_call_ses(mock_settings, incident):
     mock_settings.ses_to_emails = "ops@example.com"
 
     with patch("app.providers.notifications.ses.ses_service.send_email") as mock_send:
-        asyncio.run(SESNotificationProvider().send(incident))
+        asyncio.run(SESProvider().send(incident))
         mock_send.assert_not_called()
 
-
-# ---------------------------------------------------------------------------
-# SESNotificationProvider.send — send mode
-# ---------------------------------------------------------------------------
 
 @patch("app.providers.notifications.ses.settings")
 def test_send_mode_calls_ses_service(mock_settings, incident):
@@ -141,7 +137,7 @@ def test_send_mode_calls_ses_service(mock_settings, incident):
     mock_settings.ses_from_email = "alerts@cognis.internal"
 
     with patch("app.providers.notifications.ses.ses_service.send_email", return_value="msg-001") as mock_send:
-        asyncio.run(SESNotificationProvider().send(incident))
+        asyncio.run(SESProvider().send(incident))
         mock_send.assert_called_once()
 
 
@@ -152,7 +148,7 @@ def test_send_mode_passes_correct_recipients(mock_settings, incident):
     mock_settings.ses_from_email = "alerts@cognis.internal"
 
     with patch("app.providers.notifications.ses.ses_service.send_email", return_value="msg-001") as mock_send:
-        asyncio.run(SESNotificationProvider().send(incident))
+        asyncio.run(SESProvider().send(incident))
         to_addresses = mock_send.call_args[0][0]
         assert to_addresses == ["ops@example.com", "oncall@example.com"]
 
@@ -164,7 +160,7 @@ def test_send_mode_passes_subject(mock_settings, incident):
     mock_settings.ses_from_email = "alerts@cognis.internal"
 
     with patch("app.providers.notifications.ses.ses_service.send_email", return_value="msg-001") as mock_send:
-        asyncio.run(SESNotificationProvider().send(incident))
+        asyncio.run(SESProvider().send(incident))
         subject = mock_send.call_args[0][1]
         assert "INC-20240101-001" in subject
         assert "CRITICAL" in subject
@@ -176,7 +172,7 @@ def test_send_mode_no_recipients_skips_send(mock_settings, incident):
     mock_settings.ses_to_emails = ""
 
     with patch("app.providers.notifications.ses.ses_service.send_email") as mock_send:
-        asyncio.run(SESNotificationProvider().send(incident))
+        asyncio.run(SESProvider().send(incident))
         mock_send.assert_not_called()
 
 
@@ -186,5 +182,5 @@ def test_send_mode_whitespace_only_recipients_skips_send(mock_settings, incident
     mock_settings.ses_to_emails = "  ,  ,  "
 
     with patch("app.providers.notifications.ses.ses_service.send_email") as mock_send:
-        asyncio.run(SESNotificationProvider().send(incident))
+        asyncio.run(SESProvider().send(incident))
         mock_send.assert_not_called()

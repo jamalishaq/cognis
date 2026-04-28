@@ -62,7 +62,7 @@ class SESProvider(NotificationProvider):
         subject = _compose_subject(incident)
         body_text = _compose_text(incident)
         body_html = _compose_html(incident)
-        to_addresses = settings.ses_to_emails_list
+        to_addresses = [e.strip() for e in settings.ses_to_emails.split(",") if e.strip()]
 
         if settings.ses_mode == "log":
             print(f"Subject: {subject}\n")
