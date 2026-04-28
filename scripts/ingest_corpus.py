@@ -24,7 +24,6 @@ from backend.app.services import bedrock, dynamodb, s3vectors
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-_EMBED_MODEL_ID = "cohere.embed-english-v4:0"
 _REPO_ROOT = Path(__file__).parent.parent
 _RUNBOOKS_DIR = _REPO_ROOT / "runbooks"
 
@@ -46,7 +45,7 @@ def ingest_file(path: Path) -> int:
         chunk_id = f"{slug}-chunk-{idx:03d}"
 
         try:
-            vector = bedrock.embed(_EMBED_MODEL_ID, chunk_text, input_type="search_document")
+            vector = bedrock.embed(settings.embedding_model_id, chunk_text, input_type="search_document")
         except Exception as exc:
             logger.error("embed failed for %s chunk %d: %s", path.name, idx, exc)
             continue

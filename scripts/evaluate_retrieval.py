@@ -18,7 +18,7 @@ Usage:
     python scripts/evaluate_retrieval.py
 
     # Run without reranking
-    python scripts/evaluate_retrieval.py --no-rerank
+    python scripts/evaluate_retrieval.py --disable-rerank
 
     # Run both and show improvement delta
     python scripts/evaluate_retrieval.py --compare
@@ -62,8 +62,6 @@ from backend.app.services import bedrock, dynamodb  # noqa: E402
 DATASET_PATH = REPO_ROOT / "tests" / "evaluation" / "retrieval_eval_dataset.json"
 EMBEDDINGS_CACHE_PATH = REPO_ROOT / "tests" / "evaluation" / ".embeddings_cache.json"
 
-EMBED_MODEL_ID = "cohere.embed-english-v4:0"
-RERANK_MODEL_ID = "cohere.rerank-v3-5:0"
 TOP_CANDIDATES = 20
 TOP_RESULTS = 5
 EVAL_K = 3
@@ -133,35 +131,11 @@ def local_vector_search(
 # Embedding helpers
 # ---------------------------------------------------------------------------
 
-def _embed_text(text: str, input_type: str) -> list[float]:
-    """Call Bedrock Cohere embed-v4 with the correct input_type."""
-    import boto3  # noqa: PLC0415
-
-    client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
-    body = json.dumps({
-        "texts": [text],
-        "input_type": input_type,
-        "embedding_types": ["float"],
-    })
-    response = client.invoke_model(
-        modelId=EMBED_MODEL_ID,
-        body=body,
-        contentType="application/json",
-        accept="application/json",
-    )
-    data = json.loads(response["body"].read())
-    return data["embeddings"]["float"][0]
-
-
 def embed_corpus_chunks(
     chunks: list[dict],
     cache: bool = False,
 ) -> dict[str, list[float]]:
-    """Embed all corpus chunks using search_document input type.
-
-    If cache=True, reads from / writes to EMBEDDINGS_CACHE_PATH so that
-    subsequent runs with --compare avoid re-embedding.
-    """
+    """Embed corpus chunks. If cache=True, reads/writes EMBEDDINGS_CACHE_PATH."""
     if cache and EMBEDDINGS_CACHE_PATH.exists():
         print("  Loading embeddings from cache...")
         cached = json.loads(EMBEDDINGS_CACHE_PATH.read_text())
@@ -174,7 +148,7 @@ def embed_corpus_chunks(
     for i, chunk in enumerate(chunks, start=1):
         chunk_id = chunk["chunk_id"]
         print(f"  Embedding chunk {i}/{len(chunks)}: {chunk_id}", end="\r")
-        embeddings[chunk_id] = _embed_text(chunk["text"], "search_document")
+        embeddings[chunk_id] = bedrock.embed(settings.embedding_model_id, chunk["text"], "search_document")
         time.sleep(0.1)  # avoid throttling
     print()
 
@@ -186,7 +160,7 @@ def embed_corpus_chunks(
 
 
 def embed_query(query: str) -> list[float]:
-    return _embed_text(query, "search_query")
+    return bedrock.embed(settings.embedding_model_id, query, "search_query")
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +175,7 @@ def seed_eval_corpus(chunks: list[dict]) -> None:
             "text": chunk["text"],
             "source_file": chunk["source_file"],
             "chunk_index": 0,
-            "embedding_model": EMBED_MODEL_ID,
+            "embedding_model": settings.embedding_model_id,
         })
 
 
@@ -254,7 +228,7 @@ def run_evaluation(
                 # Rerank and map back to chunk_ids via text → id lookup
                 text_to_id = dict(zip(texts, valid_ids))
                 reranked_texts = bedrock.rerank(
-                    RERANK_MODEL_ID, query_text, texts, top_n=TOP_RESULTS
+                    settings.rerank_model_id, query_text, texts, top_n=TOP_RESULTS
                 )
                 ranked_ids = [text_to_id[t] for t in reranked_texts if t in text_to_id]
         else:
@@ -344,7 +318,7 @@ def write_report(
     import datetime  # noqa: PLC0415
 
     report = {
-        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "rerank_enabled": use_rerank,
         "n_queries": int(metrics["n_queries"]),
         "aggregate": {

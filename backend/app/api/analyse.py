@@ -9,7 +9,7 @@ from app.config import settings
 from app.models.analyse import AnalyseResponse
 from app.pipeline import agent, judge, retrieval, triage
 from app.services import dynamodb, sqs
-from app.utils.normaliser import normalise
+from app.registry.normaliser_registry import normalise
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ def analyse(payload: dict) -> AnalyseResponse:
             },
         )
 
-    # Judge — runs async after agent; failure never blocks the brief
+    # Judge — runs after agent; failure never blocks the brief
     eval_result = judge.run_judge(brief, retrieval_result.chunks)
 
     # Persist to DynamoDB — storage failure must not prevent the brief being returned
@@ -143,7 +143,6 @@ def analyse(payload: dict) -> AnalyseResponse:
     # In local dev the notify Lambda is not running — invoke it directly so
     # notification providers (e.g. SES log mode) are exercised on every /analyse call
     if settings.is_local:
-        print(f"settings is local: {settings.is_local}")
         from app.lambdas import notify as _notify_lambda  # noqa: PLC0415
 
         _notify_lambda.handler({"Records": [{"body": brief.model_dump_json()}]}, None)

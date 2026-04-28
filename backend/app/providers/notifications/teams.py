@@ -8,7 +8,7 @@ from app.providers.base import NotificationProvider
 logger = logging.getLogger(__name__)
 
 
-class TeamsNotificationProvider(NotificationProvider):
+class TeamsProvider(NotificationProvider):
     async def send(self, incident: IncidentBrief) -> None:
         # TODO: implement Microsoft Teams webhook integration
         logger.info(

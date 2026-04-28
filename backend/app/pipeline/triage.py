@@ -1,30 +1,14 @@
 import json
 import logging
-import re
 import time
 
 from app.config import settings
 from app.models.alert import NormalisedAlert
 from app.models.triage import TriageResult
 from app.services import bedrock
+from app.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_json(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        inner = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-        if inner.strip():
-            return inner.strip()
-    m = re.search(r"```(?:json)?\s*\n(.*?)\n\s*```", text, re.DOTALL)
-    if m:
-        return m.group(1).strip()
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
-        return m.group(0)
-    return text
 
 
 _SYSTEM_PROMPT = """\
@@ -57,7 +41,7 @@ def run(alert: NormalisedAlert) -> TriageResult:
                 system=_SYSTEM_PROMPT,
                 max_tokens=256,
             )
-            data = json.loads(_extract_json(raw))
+            data = json.loads(extract_json(raw))
             return TriageResult(**data)
         except Exception as exc:
             last_exc = exc
@@ -65,4 +49,4 @@ def run(alert: NormalisedAlert) -> TriageResult:
             if attempt < 2:
                 time.sleep(2**attempt)
 
-    raise last_exc  # type: ignore[misc]
+    raise last_exc  

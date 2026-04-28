@@ -94,17 +94,14 @@ def _load_from_ssm(settings: Settings) -> Settings:
         response = ssm.get_parameters(Names=batch, WithDecryption=True)
 
         for param in response["Parameters"]:
-            # Strip prefix to get the short key
             short_key = param["Name"].removeprefix(f"{settings.ssm_prefix}/")
             field_name = _SSM_PARAM_MAP.get(short_key)
             if field_name:
                 overrides[field_name] = param["Value"]
 
-        # Log any parameters that were not found
         for invalid in response.get("InvalidParameters", []):
             print(f"[config] WARNING: Parameter not found in SSM: {invalid}")
 
-    # Return a new Settings instance with SSM values merged in
     return settings.model_copy(update=overrides)
 
 

@@ -30,7 +30,6 @@ def upsert_vectors(
     index_name: str,
     vectors: list[dict[str, Any]],
 ) -> None:
-    """Write vectors to S3 Vectors. Each item: {"key": str, "vector": list[float], "metadata": dict}."""
     if settings.s3_vectors_mock:
         logger.info("S3 Vectors mock mode active — skipping upsert of %d vectors", len(vectors))
         return

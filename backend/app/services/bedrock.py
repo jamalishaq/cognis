@@ -54,7 +54,7 @@ def invoke_model(
             if attempt < 2:
                 time.sleep(2**attempt)
 
-    raise last_exc  # type: ignore[misc]
+    raise last_exc  
 
 
 def embed(model_id: str, text: str, input_type: str = "search_query") -> list[float]:
@@ -72,13 +72,7 @@ def converse_with_tools(
     tool_config: dict[str, Any] | None = None,
     max_tokens: int = 4096,
 ) -> tuple[dict[str, Any], str]:
-    """Call Bedrock converse API with optional tool support.
-
-    Returns (message_dict, stop_reason). message_dict has the shape
-    {"role": "assistant", "content": [...]}, where content items may be
-    {"text": "..."} or {"toolUse": {"toolUseId": ..., "name": ..., "input": ...}}.
-    No retry — callers are responsible for retry logic.
-    """
+    # No internal retry — callers handle retry logic.
     client = _get_client()
     kwargs: dict[str, Any] = {
         "modelId": model_id,
@@ -122,7 +116,6 @@ def stream_text(
     system: str | None = None,
     max_tokens: int = 4096,
 ) -> Generator[str, None, None]:
-    """Stream text tokens from Bedrock converse_stream. Yields text chunks as they arrive."""
     client = _get_client()
     kwargs: dict[str, Any] = {
         "modelId": model_id,

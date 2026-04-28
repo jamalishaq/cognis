@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -15,6 +14,7 @@ from app.models.incident import IncidentBrief
 from app.models.triage import TriageResult
 from app.pipeline.retrieval import RetrievalResult
 from app.services import bedrock, dynamodb
+from app.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +34,6 @@ respond with ONLY a JSON object — no markdown, no explanation:
   "recommended_actions": ["<concrete remediation step>", ...],
   "runbook_references": ["<runbook path or document title>", ...]
 }"""
-
-# ---------------------------------------------------------------------------
-# Tool schemas
-# ---------------------------------------------------------------------------
 
 _TOOL_CONFIG: dict[str, Any] = {
     "tools": [
@@ -132,12 +128,8 @@ _TOOL_CONFIG: dict[str, Any] = {
     ]
 }
 
-# ---------------------------------------------------------------------------
-# Mock tool implementations — canned data keyed by service name.
-# Data tells a consistent story: metrics corroborate the failure class.
-# ---------------------------------------------------------------------------
-
-_METRICS_BY_SERVICE: dict[str, dict[str, Any]] = {
+# Canned mock data keyed by service — tells a consistent story per failure class.
+_METRICS: dict[str, dict[str, Any]] = {
     "payments-service": {
         "error_rate_pct": 18.4,
         "p99_latency_ms": 4200,
@@ -203,7 +195,7 @@ _DEFAULT_METRICS: dict[str, Any] = {
     "note": "No specific metrics profile available for this service",
 }
 
-_DEPLOYMENT_HISTORY_BY_SERVICE: dict[str, list[dict[str, Any]]] = {
+_DEPLOYMENT_HISTORY: dict[str, list[dict[str, Any]]] = {
     "payments-service": [
         {
             "version": "v2.14.3",
@@ -293,16 +285,13 @@ _DEFAULT_DEPLOYMENT: list[dict[str, Any]] = [
 
 
 def _get_metrics(service: str) -> dict[str, Any]:
-    return _METRICS_BY_SERVICE.get(service, {**_DEFAULT_METRICS, "service": service})
+    return _METRICS.get(service, {**_DEFAULT_METRICS, "service": service})
 
 
 def _get_deployment_history(service: str) -> list[dict[str, Any]]:
-    return _DEPLOYMENT_HISTORY_BY_SERVICE.get(service, _DEFAULT_DEPLOYMENT)
+    return _DEPLOYMENT_HISTORY.get(service, _DEFAULT_DEPLOYMENT)
 
 
-# ---------------------------------------------------------------------------
-# Real tool implementations (DynamoDB)
-# ---------------------------------------------------------------------------
 
 
 def _search_incident_history(service: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -344,9 +333,6 @@ def _get_service_dependencies(service: str) -> list[dict[str, Any]]:
     return results
 
 
-# ---------------------------------------------------------------------------
-# Tool dispatch
-# ---------------------------------------------------------------------------
 
 
 def _execute_tool(name: str, tool_input: dict[str, Any]) -> str:
@@ -370,29 +356,6 @@ def _execute_tool(name: str, tool_input: dict[str, Any]) -> str:
         return json.dumps({"error": str(exc)})
 
 
-# ---------------------------------------------------------------------------
-# Agent loop
-# ---------------------------------------------------------------------------
-
-
-def _extract_json(text: str) -> str:
-    """Extract a JSON object from model output that may contain prose or code fences."""
-    text = text.strip()
-    # Whole response is a code fence
-    if text.startswith("```"):
-        lines = text.splitlines()
-        inner = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-        if inner.strip():
-            return inner.strip()
-    # Code fence embedded in prose
-    m = re.search(r"```(?:json)?\s*\n(.*?)\n\s*```", text, re.DOTALL)
-    if m:
-        return m.group(1).strip()
-    # Bare JSON object somewhere in the text
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
-        return m.group(0)
-    return text
 
 
 def _parse_brief(
@@ -401,7 +364,7 @@ def _parse_brief(
     triage: TriageResult,
     retrieval: RetrievalResult,
 ) -> IncidentBrief:
-    text = _extract_json(text)
+    text = extract_json(text)
     if not text:
         text = "{}"
     data = json.loads(text)
@@ -434,7 +397,7 @@ def _call_bedrock(messages: list[dict[str, Any]]) -> tuple[dict[str, Any], str]:
             logger.warning("Agent Bedrock call attempt %d/3 failed: %s", attempt + 1, exc)
             if attempt < 2:
                 time.sleep(2**attempt)
-    raise last_exc  # type: ignore[misc]
+    raise last_exc  
 
 
 def run(

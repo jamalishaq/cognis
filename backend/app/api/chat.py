@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _load_incident(incident_id: str) -> dict[str, Any]:
+def _get_incident_or_404(incident_id: str) -> dict[str, Any]:
     item = dynamodb.get_item("Incidents", {"incident_id": incident_id})
     if item is None:
         raise HTTPException(
@@ -35,14 +35,6 @@ def _load_history(incident_id: str) -> list[dict[str, Any]]:
         filter_expression=Attr("incident_id").eq(incident_id),
     )
     return sorted(items, key=lambda m: m.get("timestamp", ""))
-
-
-def _next_message_id(incident_id: str) -> str:
-    items = dynamodb.scan(
-        "ChatMessages",
-        filter_expression=Attr("incident_id").eq(incident_id),
-    )
-    return f"MSG-{len(items) + 1:03d}"
 
 
 def _store_message(
@@ -66,7 +58,7 @@ def _store_message(
 
 @router.post("/chat")
 def chat(request: ChatRequest) -> StreamingResponse:
-    incident = _load_incident(request.incident_id)
+    incident = _get_incident_or_404(request.incident_id)
     history = _load_history(request.incident_id)
 
     triage_result = TriageResult(
@@ -76,8 +68,9 @@ def chat(request: ChatRequest) -> StreamingResponse:
     )
     retrieval_result = retrieval.run(triage_result)
 
+    base_count = len(history)
     user_ts = datetime.now(timezone.utc)
-    user_msg_id = _next_message_id(request.incident_id)
+    user_msg_id = f"MSG-{base_count + 1:03d}"
     try:
         _store_message(user_msg_id, request.incident_id, "user", request.message, user_ts)
     except Exception as exc:
@@ -97,7 +90,7 @@ def chat(request: ChatRequest) -> StreamingResponse:
 
         full_response = "".join(chunks)
         assistant_ts = datetime.now(timezone.utc)
-        assistant_msg_id = _next_message_id(request.incident_id)
+        assistant_msg_id = f"MSG-{base_count + 2:03d}"
         try:
             _store_message(
                 assistant_msg_id,

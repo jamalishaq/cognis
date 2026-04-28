@@ -154,7 +154,7 @@ SAMPLE_CORPUS_CHUNKS = [
             "Monitor pg_stat_activity to confirm connections drain within 2 minutes."
         ),
         "chunk_index": 0,
-        "embedding_model": "amazon.titan-embed-text-v2:0",
+        "embedding_model": "cohere.embed-english-v4:0",
     },
     {
         "chunk_id": "chunk-002",
@@ -167,7 +167,7 @@ SAMPLE_CORPUS_CHUNKS = [
             "errors and manifest as HTTP 500/503 responses to callers."
         ),
         "chunk_index": 0,
-        "embedding_model": "amazon.titan-embed-text-v2:0",
+        "embedding_model": "cohere.embed-english-v4:0",
     },
     {
         "chunk_id": "chunk-003",
@@ -181,7 +181,7 @@ SAMPLE_CORPUS_CHUNKS = [
             "max_connections on shared RDS instances."
         ),
         "chunk_index": 1,
-        "embedding_model": "amazon.titan-embed-text-v2:0",
+        "embedding_model": "cohere.embed-english-v4:0",
     },
 ]
 

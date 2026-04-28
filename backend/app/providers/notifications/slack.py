@@ -8,7 +8,7 @@ from app.providers.base import NotificationProvider
 logger = logging.getLogger(__name__)
 
 
-class SlackNotificationProvider(NotificationProvider):
+class SlackProvider(NotificationProvider):
     async def send(self, incident: IncidentBrief) -> None:
         # TODO: implement Slack webhook integration
         logger.info(
