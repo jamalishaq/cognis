@@ -1,9 +1,9 @@
 # patch_all() must run before any boto3 client is created.
 # config.py creates an SSM client at module level in non-local environments,
 # so these two lines must stay above all other imports.
-from aws_xray_sdk.core import patch_all, xray_recorder
+from aws_xray_sdk.core import patch, xray_recorder
 
-patch_all()
+patch(["boto3", "botocore"])
 xray_recorder.configure(service="cognis", context_missing="LOG_ERROR")
 
 import uuid
