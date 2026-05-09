@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { API_BASE_URL } from "@/lib/api";
 
@@ -81,6 +82,7 @@ const SOURCE_LABELS: Record<AlertSource, string> = {
 };
 
 export function MockAlertPage() {
+  const navigate = useNavigate();
   const [source, setSource] = useState<AlertSource>("grafana");
   const [loading, setLoading] = useState(false);
   const [incidentId, setIncidentId] = useState<string | null>(null);
@@ -122,10 +124,21 @@ export function MockAlertPage() {
 
   function handleCopy() {
     if (!incidentId) return;
-    navigator.clipboard.writeText(incidentId).then(() => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(incidentId).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } else {
+      const el = document.createElement("textarea");
+      el.value = incidentId;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }
   }
 
   return (
@@ -201,6 +214,9 @@ export function MockAlertPage() {
               {copied ? "Copied!" : "Copy"}
             </Button>
           </div>
+          <Button onClick={() => navigate(`/incidents/${incidentId}`)}>
+            Go to Incident
+          </Button>
         </div>
       )}
 
