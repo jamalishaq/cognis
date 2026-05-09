@@ -227,6 +227,143 @@ resource "aws_cloudwatch_metric_alarm" "ingest_lambda_errors" {
   tags = { Environment = var.environment }
 }
 
+# ─── Custom Application Metric Alarms ─────────────────────────────────────────
+
+resource "aws_cloudwatch_metric_alarm" "pipeline_slo" {
+  alarm_name          = "cognis-${var.environment}-pipeline-slo"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  extended_statistic  = "p95"
+  metric_name         = "pipeline_duration_ms"
+  namespace           = "Cognis/Pipeline"
+  period              = 300
+  threshold           = 15000
+  alarm_description   = "Pipeline p95 duration > 15s"
+  actions_enabled     = var.enable_alarm_actions
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+
+  tags = { Environment = var.environment }
+}
+
+resource "aws_cloudwatch_metric_alarm" "retrieval_degraded" {
+  alarm_name          = "cognis-${var.environment}-retrieval-degraded"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = 0.1
+  alarm_description   = "Retrieval degraded rate > 10% of incidents processed over 1hr"
+  actions_enabled     = var.enable_alarm_actions
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+
+  metric_query {
+    id          = "degraded"
+    return_data = false
+    metric {
+      metric_name = "retrieval_degraded"
+      namespace   = "Cognis/Pipeline"
+      period      = 3600
+      stat        = "Sum"
+    }
+  }
+
+  metric_query {
+    id          = "total"
+    return_data = false
+    metric {
+      metric_name = "incidents_processed"
+      namespace   = "Cognis/Pipeline"
+      period      = 3600
+      stat        = "Sum"
+    }
+  }
+
+  metric_query {
+    id          = "rate"
+    expression  = "degraded / total"
+    label       = "Retrieval Degraded Rate"
+    return_data = true
+  }
+
+  tags = { Environment = var.environment }
+}
+
+resource "aws_cloudwatch_metric_alarm" "judge_quality" {
+  alarm_name          = "cognis-${var.environment}-judge-quality"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "judge_groundedness"
+  namespace           = "Cognis/Judge"
+  period              = 3600
+  statistic           = "Average"
+  threshold           = 3
+  alarm_description   = "Judge groundedness avg < 3 over 1hr"
+  actions_enabled     = var.enable_alarm_actions
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+
+  tags = { Environment = var.environment }
+}
+
+resource "aws_cloudwatch_metric_alarm" "judge_flags" {
+  alarm_name          = "cognis-${var.environment}-judge-flags"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = 0.2
+  alarm_description   = "Judge flagged rate > 20% of incidents over 1hr"
+  actions_enabled     = var.enable_alarm_actions
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+
+  metric_query {
+    id          = "flagged"
+    return_data = false
+    metric {
+      metric_name = "judge_flagged"
+      namespace   = "Cognis/Judge"
+      period      = 3600
+      stat        = "Sum"
+    }
+  }
+
+  metric_query {
+    id          = "total"
+    return_data = false
+    metric {
+      metric_name = "incidents_processed"
+      namespace   = "Cognis/Pipeline"
+      period      = 3600
+      stat        = "Sum"
+    }
+  }
+
+  metric_query {
+    id          = "rate"
+    expression  = "flagged / total"
+    label       = "Judge Flagged Rate"
+    return_data = true
+  }
+
+  tags = { Environment = var.environment }
+}
+
+resource "aws_cloudwatch_metric_alarm" "agent_tool_calls" {
+  alarm_name          = "cognis-${var.environment}-agent-tool-calls"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "agent_tool_calls"
+  namespace           = "Cognis/Pipeline"
+  period              = 3600
+  statistic           = "Average"
+  threshold           = 5
+  alarm_description   = "Agent tool calls avg > 5 over 1hr"
+  actions_enabled     = var.enable_alarm_actions
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+
+  tags = { Environment = var.environment }
+}
+
 # ─── CloudWatch Dashboard ──────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_dashboard" "main" {
@@ -321,6 +458,37 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
           period = 60
           stat   = "Sum"
+          region = "us-east-1" # hardcoded — project is us-east-1 only
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 18
+        width  = 12
+        height = 6
+        properties = {
+          title   = "Bedrock Invocations"
+          metrics = [["AWS/Bedrock", "Invocations"]]
+          period  = 60
+          stat    = "Sum"
+          region  = "us-east-1" # hardcoded — project is us-east-1 only
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 18
+        width  = 12
+        height = 6
+        properties = {
+          title = "Judge Score Trends"
+          metrics = [
+            ["Cognis/Judge", "judge_groundedness"],
+            ["Cognis/Judge", "judge_flagged"]
+          ]
+          period = 3600
+          stat   = "Average"
           region = "us-east-1" # hardcoded — project is us-east-1 only
         }
       }

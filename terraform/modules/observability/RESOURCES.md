@@ -42,7 +42,17 @@ All alarms: `actions_enabled = true` in prod, `actions_enabled = false` in dev
   - `fixed_rate = 0.1` in prod (sample 10%)
   - `resource_arn = "*"`, `service_name = "cognis"`, `service_type = "*"`, `host = "*"`, `http_method = "*"`, `url_path = "*"`, `version = 1`
 
-## SNS Topic for Alarm Notifications (prod only)
+## Custom Metric Alarms (Application)
+
+These alarm on metrics emitted via EMF from the FastAPI application:
+
+- `aws_cloudwatch_metric_alarm` pipeline_slo — `Cognis/Pipeline` `pipeline_duration_ms` p95 > 15000ms for 2 consecutive periods
+- `aws_cloudwatch_metric_alarm` retrieval_degraded — `Cognis/Pipeline` `retrieval_degraded` sum > 10% of `incidents_processed` over 1hr
+- `aws_cloudwatch_metric_alarm` judge_quality — `Cognis/Judge` `judge_groundedness` avg < 3 over 1hr
+- `aws_cloudwatch_metric_alarm` judge_flags — `Cognis/Judge` `judge_flagged` rate > 20% over 1hr
+- `aws_cloudwatch_metric_alarm` agent_tool_calls — `Cognis/Pipeline` `agent_tool_calls` avg > 5 over 1hr
+
+
 - `aws_sns_topic` alarms — name `cognis-prod-alarms`
 - `aws_sns_topic_subscription` — email endpoint for on-call engineer
 - All CloudWatch alarms in prod have `alarm_actions = [sns_topic_arn]`

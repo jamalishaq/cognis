@@ -134,7 +134,7 @@ export function MockAlertPage() {
         <h1 className="text-lg font-semibold">
           Cognis Mock Alert Firing{" "}
           <span className="text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-950 text-amber-400 border border-amber-800 ml-2 align-middle">
-            Dev Only
+            Demo Only
           </span>
         </h1>
         <p className="text-sm text-muted-foreground mt-1">

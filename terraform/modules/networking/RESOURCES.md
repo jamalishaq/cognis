@@ -15,14 +15,15 @@
 - `aws_route_table_association` x2 — associate route table with both subnets
 
 ## Security Groups
-- `aws_security_group` alb — inbound 443 from `0.0.0.0/0`, outbound all to ECS security group
+- `aws_security_group` alb — inbound 80 and 443 from `0.0.0.0/0`, outbound all to ECS security group
 - `aws_security_group` ecs — inbound 8000 from ALB security group only, outbound all
 - `aws_security_group` lambda — no inbound, outbound all
 
 ## Application Load Balancer
 - `aws_lb` — internet-facing (`internal = false`), type application, in both subnets, ALB security group
 - `aws_lb_target_group` — port 8000, protocol HTTP, target type IP, health check path `/health`
-- `aws_lb_listener` — port 443 HTTPS, forward all traffic to ECS target group
+- `aws_lb_listener` http — port 80 HTTP, forward all traffic to ECS target group
+- `aws_lb_listener` https — port 443 HTTPS, forward all traffic to ECS target group
 
 ## ACM Certificate
 - `aws_acm_certificate` — for the ALB HTTPS listener. Use DNS validation.

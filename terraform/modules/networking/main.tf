@@ -55,8 +55,15 @@ resource "aws_route_table_association" "public" {
 
 resource "aws_security_group" "alb" {
   name        = "cognis-${var.environment}-alb-sg"
-  description = "ALB inbound 443 from all, outbound to ECS"
+  description = "ALB inbound 80/443 from all, outbound to ECS"
   vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   ingress {
     from_port   = 443
@@ -154,6 +161,22 @@ resource "aws_lb_target_group" "main" {
 
   tags = {
     Name        = "cognis-${var.environment}-tg"
+    Environment = var.environment
+  }
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.main.arn
+  }
+
+  tags = {
+    Name        = "cognis-${var.environment}-http-listener"
     Environment = var.environment
   }
 }

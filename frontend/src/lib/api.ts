@@ -1,6 +1,6 @@
 import type { ChatHistoryResponse, IncidentRecord, ResolveRequest, ResolveResponse } from "@/types";
 
-export const API_BASE_URL = "https://cognis-dev-alb-1396645940.us-east-1.elb.amazonaws.com";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
