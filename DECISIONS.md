@@ -1911,43 +1911,249 @@ Traffic is unpredictable and low — incidents fire occasionally, not constantly
 
 ---
 
-## Logging Strategy
+## Structured Logging Implementation
 
-**Tool: `structlog` (Python) — JSON structured logging**
+**Tooling: `structlog` — JSON output for CloudWatch and Datadog**
 
-Plain text logs are hard to query in CloudWatch. JSON logs can be filtered and searched by field in CloudWatch Logs Insights. `structlog` adds structured JSON logging to FastAPI with minimal setup.
+Every log entry is a JSON object queryable by field in CloudWatch Logs Insights or Datadog. Plain string logs are not used in deployed environments.
 
-**Log entry shape:**
+**Three tiers of context — automatically merged on every log entry:**
 
-```json
-{
-  "timestamp": "2025-04-23T10:15:03Z",
-  "level": "INFO",
-  "environment": "prod",
-  "service": "cognis",
-  "incident_id": "INC-20250423-001",
-  "stage": "triage",
-  "message": "Triage classification completed",
-  "duration_ms": 823,
-  "metadata": {}
-}
-```
+| Tier | Scope | Example fields |
+|---|---|---|
+| Base context | App lifetime | `service`, `environment`, `version` |
+| Request context | Per request (middleware) | `request_id`, `endpoint`, `method`, `incident_id` |
+| Event context | Per log call | `stage`, `duration_ms`, `model_id`, `failure_class` |
 
-`incident_id` and `stage` are the key fields — they let you filter all logs for a specific incident and pinpoint exactly which pipeline stage produced a log entry.
+`structlog.contextvars` handles context binding — `incident_id` is bound once in the endpoint handler and automatically appears on every subsequent log entry within that request.
+
+**Log format per environment:**
+
+| Environment | Format | Why |
+|---|---|---|
+| `local` | ColourConsoleRenderer (pretty) | Human-readable during development |
+| `dev` / `prod` | JSONRenderer (structured) | Machine-queryable in CloudWatch / Datadog |
 
 **Log levels:**
 
 | Environment | Level | Why |
 |---|---|---|
-| Dev | DEBUG | Full visibility during development |
-| Prod | INFO | Normal operations captured without noise — WARNING and ERROR automatically included |
+| `local` | DEBUG | Full visibility during development |
+| `dev` / `prod` | INFO | Normal operations — WARNING and ERROR included automatically |
 
-**Log retention:**
+**Log retention:** dev=7 days, prod=30 days (CloudWatch log groups).
 
-| Environment | Retention | Why |
+**Key log entry shape:**
+
+```json
+{
+  "timestamp": "2026-04-23T10:15:03Z",
+  "level": "info",
+  "service": "cognis",
+  "environment": "prod",
+  "version": "abc1234",
+  "request_id": "req-uuid",
+  "incident_id": "INC-20260423-001",
+  "endpoint": "/analyse",
+  "stage": "triage",
+  "duration_ms": 823,
+  "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "failure_class": "latency_spike",
+  "message": "Triage classification completed"
+}
+```
+
+**What is logged at each pipeline stage:**
+
+| Stage | Level | Key fields |
 |---|---|---|
-| Dev | 7 days | Dev logs are for active debugging only |
-| Prod | 30 days | Long enough to investigate incidents and audit |
+| Request received | info | `endpoint`, `source` |
+| Triage completed | info | `stage=triage`, `duration_ms`, `failure_class`, `severity` |
+| Triage retry | warning | `stage=triage`, `attempt`, `error` |
+| Triage failed | error | `stage=triage`, `attempts=3`, `error` |
+| RAG retrieval completed | info | `stage=retrieval`, `duration_ms`, `chunks_retrieved`, `reranked=true` |
+| RAG degraded | warning | `stage=retrieval`, `retrieval_context_available=false`, `reason` |
+| Agent tool call | info | `stage=agent`, `tool_name`, `duration_ms` |
+| Agent completed | info | `stage=agent`, `duration_ms`, `tool_calls_count` |
+| Judge completed | info | `stage=judge`, `groundedness`, `completeness`, `actionability`, `confidence` |
+| Judge failed | warning | `stage=judge`, `error`, `eval_ran=false` |
+| DynamoDB write failed | error | `stage=storage`, `table`, `error` |
+| Brief returned | info | `total_duration_ms` (end-to-end) |
+
+**Implementation files:**
+
+- `backend/app/logging_config.py` — `configure_logging(environment, version)` called once at startup
+- `backend/app/main.py` — startup call + HTTP middleware that clears and binds request context per request
+- All pipeline files — `log = structlog.get_logger()` at module level, no `print()` statements
+
+**CloudWatch Logs Insights queries enabled by this structure:**
+
+```sql
+-- Full trace for one incident
+filter incident_id = "INC-20260423-001" | sort timestamp asc
+
+-- Average pipeline duration by failure class
+filter stage = "agent" | stats avg(duration_ms) by failure_class
+
+-- Error rate by stage
+filter level = "error" | stats count(*) by stage
+
+-- Judge score trends
+filter stage = "judge" | stats avg(groundedness), avg(completeness) by bin(1h)
+
+-- Retrieval degradation rate
+filter retrieval_context_available = false | stats count(*) by bin(1h)
+```
+
+**Datadog compatibility:** The same JSON format is parsed automatically by Datadog's log collection agent — no code changes needed if switching from CloudWatch to Datadog. Future improvement: add `dd.trace_id` and `dd.span_id` fields for APM trace correlation.
+
+---
+
+## Distributed Tracing
+
+Structured logging captures discrete events. Tracing captures the full journey of a request as a connected unit of spans with parent-child relationships, start/end times, and metadata. Both are needed — they answer different questions.
+
+**Three tools, three concerns:**
+
+| Tool | Covers | What it answers |
+|---|---|---|
+| AWS X-Ray | HTTP request → FastAPI → DynamoDB → SQS | Where did latency come from in the infrastructure layer? |
+| Langfuse | Every Bedrock model call | Token usage, model latency, prompt content, AI pipeline quality |
+| structlog | Application events at each stage | What happened, in what order, with what context? |
+
+All three are linked by `incident_id` (application-level) and `trace_id` (X-Ray trace — injected into every structlog entry).
+
+---
+
+### AWS X-Ray
+
+X-Ray traces the full HTTP request lifecycle — from ALB through FastAPI, including downstream calls to DynamoDB, SQS, and Bedrock. Each operation becomes a span in the trace waterfall.
+
+**Integration:** `aws-xray-sdk` patches boto3 automatically — DynamoDB, SQS, and Bedrock calls are traced without any manual instrumentation. FastAPI middleware captures the HTTP span.
+
+**Sampling:**
+- dev: `fixed_rate = 1.0` — sample all requests
+- prod: `fixed_rate = 0.1` — sample 10%
+
+---
+
+### Log-to-Trace Correlation
+
+The X-Ray `trace_id` is injected into every structlog entry via the logging middleware. This allows jumping directly from a CloudWatch log entry to the corresponding X-Ray trace waterfall.
+
+```python
+# main.py — logging middleware
+from aws_xray_sdk.core import xray_recorder
+
+segment = xray_recorder.current_segment()
+trace_id = segment.trace_id if segment else None
+bind_contextvars(trace_id=trace_id, ...)
+```
+
+Every log entry then contains:
+```json
+{
+  "incident_id": "INC-20260423-001",
+  "trace_id": "1-5f84c7a2-07603a4c2c5f6e1c4a3b2d1e",
+  "stage": "triage",
+  "message": "triage_completed"
+}
+```
+
+---
+
+### Langfuse — AI Pipeline Tracing
+
+Langfuse traces every Bedrock model call automatically — token counts, latency, prompt content, and model responses. This covers the AI-specific observability that X-Ray cannot provide.
+
+Langfuse traces are linked to the application context by passing `incident_id` as metadata on each trace. This means you can filter Langfuse traces by `incident_id` and see all model calls for a specific incident.
+
+**What Langfuse captures per model call:**
+- Input tokens + output tokens + cost estimate
+- Model latency (time to first token, total)
+- Full prompt and response content
+- Tool calls and their results (agent loop)
+- Judge scores per incident
+
+---
+
+### Full Observability Picture for One Incident
+
+```
+Engineer opens CloudWatch → filters by incident_id → sees all log events in order
+    │
+    └── clicks trace_id → jumps to X-Ray → sees full span waterfall:
+            ├── HTTP /analyse (total 5.4s)
+            │     ├── DynamoDB PutItem (12ms)
+            │     ├── SQS SendMessage (8ms)
+            │     └── Bedrock InvokeModel (4.2s)  ← X-Ray sees this as one span
+            │
+            └── opens Langfuse → filters by incident_id → sees AI detail:
+                    ├── triage call: 823ms, 450 input tokens, 85 output tokens
+                    ├── embed call: 120ms, 512 input tokens
+                    ├── rerank call: 95ms
+                    ├── agent call 1: 1823ms + tool: get_metrics
+                    ├── agent call 2: 1654ms + tool: get_deployment_history
+                    ├── agent call 3: 671ms → final brief
+                    └── judge call: 412ms, groundedness=4, completeness=5
+```
+
+**Dependencies to add to `requirements.txt`:**
+- `aws-xray-sdk` — X-Ray tracing + boto3 auto-patching
+- `langfuse` — AI pipeline tracing (already decided)
+
+---
+
+## Metrics
+
+Three sources of metrics — two automatic, one custom:
+
+**Infrastructure metrics (automatic — CloudWatch):**
+ALB request count, 5xx error rate, target response time, ECS CPU/memory/task count, SQS message backlog and DLQ pressure, Lambda duration/errors/concurrency, Bedrock invocation latency and throttle count. No code required — already captured and alarmed in `observability/RESOURCES.md`.
+
+**AI quality metrics (custom — emitted via EMF):**
+
+| Metric | Namespace | Unit | Why |
+|---|---|---|---|
+| `pipeline_duration_ms` | Cognis/Pipeline | Milliseconds | End-to-end SLO tracking |
+| `triage_duration_ms` | Cognis/Pipeline | Milliseconds | Triage latency breakdown |
+| `retrieval_duration_ms` | Cognis/Pipeline | Milliseconds | RAG latency breakdown |
+| `agent_duration_ms` | Cognis/Pipeline | Milliseconds | Agent loop latency breakdown |
+| `agent_tool_calls` | Cognis/Pipeline | Count | Tools called per incident |
+| `retrieval_degraded` | Cognis/Pipeline | Count | RAG graceful degradation events |
+| `incidents_processed` | Cognis/Pipeline | Count | Total incidents analysed |
+| `judge_groundedness` | Cognis/Judge | None (1–5) | Agent output quality |
+| `judge_completeness` | Cognis/Judge | None (1–5) | Agent output quality |
+| `judge_actionability` | Cognis/Judge | None (1–5) | Agent output quality |
+| `judge_low_confidence` | Cognis/Judge | Count | Agent uncertainty rate |
+| `judge_flagged` | Cognis/Judge | Count | Hallucination / quality concern rate |
+| `judge_eval_failed` | Cognis/Judge | Count | Judge failure rate |
+| `bedrock_input_tokens` | Cognis/Bedrock | Count | Cost tracking per model |
+| `bedrock_output_tokens` | Cognis/Bedrock | Count | Cost tracking per model |
+
+**Emission method: AWS Embedded Metrics Format (EMF)**
+
+EMF embeds metric data inside structured log entries — no extra API call, no added latency. CloudWatch parses the `_aws` block automatically and creates metrics from the log stream. Metrics and logs are emitted in a single write, keeping the structlog pipeline as the single output path.
+
+Library: `aws-embedded-metrics`
+
+**Dimensions on all custom metrics:** `environment` (dev/prod), `failure_class` (where applicable).
+
+**Custom CloudWatch Alarms on application metrics:**
+
+| Alarm | Condition |
+|---|---|
+| `pipeline_duration_p95 > 15s` | SLO breach on `/analyse` |
+| `retrieval_degraded_rate > 10%` over 1hr | RAG pipeline health degrading |
+| `judge_groundedness_avg < 3` over 1hr | Agent output quality declining |
+| `judge_flagged_rate > 20%` | Hallucination rate too high |
+| `agent_tool_calls_avg > 5` | Agent over-calling tools — prompt or context issue |
+
+**Implementation:**
+- `backend/app/metrics.py` — EMF helper functions
+- Called from pipeline stages after each operation completes
+- Token counts emitted from `backend/app/services/bedrock.py` after every model call
+- All five judge scores emitted from `pipeline/judge.py`
 
 ---
 

@@ -220,6 +220,10 @@ resource "aws_ecs_task_definition" "main" {
         {
           name  = "SSM_PREFIX"
           value = "/cognis/${var.environment}"
+        },
+        {
+          name  = "AWS_EMF_ENVIRONMENT"
+          value = "Local"
         }
       ]
       logConfiguration = {

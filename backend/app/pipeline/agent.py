@@ -368,13 +368,22 @@ def _parse_brief(
     if not text:
         text = "{}"
     data = json.loads(text)
+
+    affected_service = data.get("affected_service", triage.service)
+    if isinstance(affected_service, list):
+        affected_service = affected_service[0] if affected_service else triage.service
+
+    failure_class = data.get("failure_class", triage.failure_class)
+    if isinstance(failure_class, list):
+        failure_class = failure_class[0] if failure_class else triage.failure_class
+
     return IncidentBrief(
         incident_id=incident_id,
         title=data.get("title", f"Incident: {triage.service}"),
         summary=data.get("summary", ""),
         severity=data.get("severity", triage.severity),
-        affected_service=data.get("affected_service", triage.service),
-        failure_class=data.get("failure_class", triage.failure_class),
+        affected_service=affected_service,
+        failure_class=failure_class,
         recommended_actions=data.get("recommended_actions", []),
         runbook_references=data.get("runbook_references", []),
         retrieval_context_available=retrieval.retrieval_context_available,
