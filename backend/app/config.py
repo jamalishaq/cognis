@@ -88,20 +88,26 @@ def _load_from_ssm(settings: Settings) -> Settings:
         for key in _SSM_PARAM_MAP
     ]
 
-    # Fetch all parameters in one batch call (max 10 per call)
     overrides = {}
-    for i in range(0, len(param_names), 10):
-        batch = param_names[i:i + 10]
-        response = ssm.get_parameters(Names=batch, WithDecryption=True)
+    try:
+        for i in range(0, len(param_names), 10):
+            batch = param_names[i:i + 10]
+            response = ssm.get_parameters(Names=batch, WithDecryption=True)
 
-        for param in response["Parameters"]:
-            short_key = param["Name"].removeprefix(f"{settings.ssm_prefix}/")
-            field_name = _SSM_PARAM_MAP.get(short_key)
-            if field_name:
-                overrides[field_name] = param["Value"]
+            for param in response["Parameters"]:
+                short_key = param["Name"].removeprefix(f"{settings.ssm_prefix}/")
+                field_name = _SSM_PARAM_MAP.get(short_key)
+                if field_name:
+                    overrides[field_name] = param["Value"]
 
-        for invalid in response.get("InvalidParameters", []):
-            structlog.get_logger().warning("ssm_parameter_not_found", parameter=invalid)
+            for invalid in response.get("InvalidParameters", []):
+                structlog.get_logger().warning("ssm_parameter_not_found", parameter=invalid)
+    except Exception as exc:
+        structlog.get_logger().error(
+            "ssm_load_failed",
+            error=str(exc),
+            prefix=settings.ssm_prefix,
+        )
 
     return settings.model_copy(update=overrides)
 
