@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { MockAlertPage } from "./MockAlertPage";
+
+const renderPage = () => render(<MemoryRouter><MockAlertPage /></MemoryRouter>);
 
 const GRAFANA_PAYLOAD = {
   alerts: [
@@ -36,7 +39,7 @@ afterEach(() => {
 
 describe("MockAlertPage", () => {
   it("renders correctly with Grafana selected by default", () => {
-    render(<MockAlertPage />);
+    renderPage();
 
     expect(screen.getByText(/Cognis Mock Alert Firing/)).toBeInTheDocument();
     expect(screen.getByLabelText("Alert Source")).toHaveValue("grafana");
@@ -53,7 +56,7 @@ describe("MockAlertPage", () => {
     });
     vi.stubGlobal("fetch", mockFetch);
 
-    render(<MockAlertPage />);
+    renderPage();
     await user.click(screen.getByRole("button", { name: "Fire Alert" }));
 
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -73,7 +76,7 @@ describe("MockAlertPage", () => {
       })
     );
 
-    render(<MockAlertPage />);
+    renderPage();
     await user.click(screen.getByRole("button", { name: "Fire Alert" }));
 
     await waitFor(() => {
@@ -93,7 +96,7 @@ describe("MockAlertPage", () => {
       })
     );
 
-    render(<MockAlertPage />);
+    renderPage();
     await user.click(screen.getByRole("button", { name: "Fire Alert" }));
 
     await waitFor(() => {
