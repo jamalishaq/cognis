@@ -55,7 +55,7 @@ resource "aws_route_table_association" "public" {
 
 resource "aws_security_group" "alb" {
   name        = "cognis-${var.environment}-alb-sg"
-  description = "ALB inbound 80/443 from all, outbound to ECS"
+  description = "ALB inbound 443 from all, outbound to ECS"
   vpc_id      = aws_vpc.main.id
 
   ingress {
