@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from boto3.dynamodb.conditions import Attr
 
 from app.config import settings
+from app.metrics import emit_pipeline_metric
 from app.models.alert import NormalisedAlert
 from app.models.incident import IncidentBrief
 from app.models.triage import TriageResult
@@ -16,7 +17,7 @@ from app.pipeline.retrieval import RetrievalResult
 from app.services import bedrock, dynamodb
 from app.utils.json_utils import extract_json
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _SYSTEM_PROMPT = """\
 You are an SRE incident response agent. Use the available tools to gather context \
@@ -292,8 +293,6 @@ def _get_deployment_history(service: str) -> list[dict[str, Any]]:
     return _DEPLOYMENT_HISTORY.get(service, _DEFAULT_DEPLOYMENT)
 
 
-
-
 def _search_incident_history(service: str, limit: int = 5) -> list[dict[str, Any]]:
     items = dynamodb.scan(
         "Incidents",
@@ -333,9 +332,8 @@ def _get_service_dependencies(service: str) -> list[dict[str, Any]]:
     return results
 
 
-
-
 def _execute_tool(name: str, tool_input: dict[str, Any]) -> str:
+    t0 = time.perf_counter()
     try:
         if name == "get_metrics":
             result: Any = _get_metrics(tool_input["service"])
@@ -350,12 +348,14 @@ def _execute_tool(name: str, tool_input: dict[str, Any]) -> str:
             result = _get_service_dependencies(tool_input["service"])
         else:
             result = {"error": f"Unknown tool: {name}"}
-        return json.dumps(result)
     except Exception as exc:
-        logger.warning("Tool %s failed with input %s: %s", name, tool_input, exc)
+        log.warning("tool_called", stage="agent", tool_name=name,
+                    duration_ms=round((time.perf_counter() - t0) * 1000), error=str(exc))
         return json.dumps({"error": str(exc)})
 
-
+    log.info("tool_called", stage="agent", tool_name=name,
+             duration_ms=round((time.perf_counter() - t0) * 1000))
+    return json.dumps(result)
 
 
 def _parse_brief(
@@ -391,13 +391,14 @@ def _call_bedrock(messages: list[dict[str, Any]]) -> tuple[dict[str, Any], str]:
                 messages=messages,
                 system=_SYSTEM_PROMPT,
                 tool_config=_TOOL_CONFIG,
+                trace_name="agent",
             )
         except Exception as exc:
             last_exc = exc
-            logger.warning("Agent Bedrock call attempt %d/3 failed: %s", attempt + 1, exc)
+            log.warning("agent_bedrock_retry", stage="agent", attempt=attempt + 1, error=str(exc))
             if attempt < 2:
-                time.sleep(2**attempt)
-    raise last_exc  
+                time.sleep(2 ** attempt)
+    raise last_exc
 
 
 def run(
@@ -406,6 +407,9 @@ def run(
     retrieval: RetrievalResult,
     incident_id: str,
 ) -> IncidentBrief:
+    t0 = time.perf_counter()
+    tool_calls_count = 0
+
     context_section = ""
     if retrieval.retrieval_context_available and retrieval.chunks:
         context_section = "\n\nRelevant runbook context:\n" + "\n---\n".join(retrieval.chunks)
@@ -434,8 +438,15 @@ def run(
         if not tool_use_blocks:
             text_blocks = [b["text"] for b in message["content"] if "text" in b]
             text = next((t for t in text_blocks if t.strip()), "{}")
+            duration_ms = round((time.perf_counter() - t0) * 1000)
+            log.info("agent_completed", stage="agent", duration_ms=duration_ms,
+                     tool_calls_count=tool_calls_count)
+            dims = {"environment": settings.environment, "failure_class": triage.failure_class}
+            emit_pipeline_metric("agent_duration_ms", duration_ms, "Milliseconds", dims)
+            emit_pipeline_metric("agent_tool_calls", tool_calls_count, "Count", dims)
             return _parse_brief(text, incident_id, triage, retrieval)
 
+        tool_calls_count += len(tool_use_blocks)
         tool_result_contents = []
         for block in tool_use_blocks:
             tool_use = block["toolUse"]

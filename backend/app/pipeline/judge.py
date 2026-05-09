@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
-import logging
+
+import structlog
 
 from app.config import settings
+from app.metrics import emit_judge_metric
 from app.models.eval import EvalResult
 from app.models.incident import IncidentBrief
 from app.services import bedrock
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _SYSTEM_PROMPT = """\
 You are a quality evaluator for AI-generated incident briefs. Score the brief against
@@ -61,10 +63,11 @@ def run_judge(brief: IncidentBrief, chunks: list[str]) -> EvalResult:
             messages=messages,
             system=_SYSTEM_PROMPT,
             max_tokens=512,
+            trace_name="judge",
         )
 
         data = json.loads(raw)
-        return EvalResult(
+        result = EvalResult(
             eval_ran=True,
             groundedness=int(data["groundedness"]),
             completeness=int(data["completeness"]),
@@ -72,7 +75,22 @@ def run_judge(brief: IncidentBrief, chunks: list[str]) -> EvalResult:
             confidence=data["confidence"],
             flags=data.get("flags", []),
         )
+        log.info("judge_completed", stage="judge",
+                 groundedness=result.groundedness,
+                 completeness=result.completeness,
+                 actionability=result.actionability,
+                 confidence=result.confidence)
+        dims = {"environment": settings.environment}
+        emit_judge_metric("judge_groundedness", result.groundedness, "None", dims)
+        emit_judge_metric("judge_completeness", result.completeness, "None", dims)
+        emit_judge_metric("judge_actionability", result.actionability, "None", dims)
+        if result.confidence == "low":
+            emit_judge_metric("judge_low_confidence", 1, "Count", dims)
+        if result.flags:
+            emit_judge_metric("judge_flagged", 1, "Count", dims)
+        return result
 
     except Exception as exc:
-        logger.error("Judge failed for incident %s: %s", brief.incident_id, exc)
+        log.warning("judge_failed", stage="judge", error=str(exc), eval_ran=False)
+        emit_judge_metric("judge_eval_failed", 1, "Count", {"environment": settings.environment})
         return EvalResult(eval_ran=False)

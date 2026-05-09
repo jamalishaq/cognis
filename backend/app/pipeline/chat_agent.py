@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import logging
+import structlog
 from collections.abc import Generator
 from typing import Any
 
 from app.config import settings
 from app.services import bedrock
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _SYSTEM_TEMPLATE = """\
 You are an SRE assistant helping to investigate and resolve an active incident.
@@ -52,4 +52,4 @@ def run(
         messages.append({"role": msg["role"], "content": [{"text": msg["content"]}]})
     messages.append({"role": "user", "content": [{"text": user_message}]})
 
-    return bedrock.stream_text(model_id=settings.chat_model_id, messages=messages, system=system)
+    return bedrock.stream_text(model_id=settings.chat_model_id, messages=messages, system=system, trace_name="chat")

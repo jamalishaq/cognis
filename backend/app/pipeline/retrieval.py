@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass
 
+import structlog
+
 from app.config import settings
+from app.metrics import emit_pipeline_metric
 from app.models.triage import TriageResult
 from app.services import bedrock, dynamodb, s3vectors
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _TOP_CANDIDATES = 20
 _TOP_RESULTS = 5
@@ -35,13 +37,14 @@ def _fetch_chunk_texts(chunk_ids: list[str]) -> list[str]:
 
 def run(triage: TriageResult) -> RetrievalResult:
     query = _build_query(triage)
+    t0 = time.perf_counter()
 
     # Embed + vector search with retry; failure → full degradation
     candidates: list[dict] | None = None
     last_exc: Exception | None = None
     for attempt in range(3):
         try:
-            query_vector = bedrock.embed(settings.embedding_model_id, query)
+            query_vector = bedrock.embed(settings.embedding_model_id, query, trace_name="embed")
             candidates = s3vectors.query_vectors(
                 settings.s3_vectors_bucket_name,
                 settings.s3_vectors_index_name,
@@ -51,19 +54,23 @@ def run(triage: TriageResult) -> RetrievalResult:
             break
         except Exception as exc:
             last_exc = exc
-            logger.warning("Retrieval vector search attempt %d/3 failed: %s", attempt + 1, exc)
+            log.warning("retrieval_retry", stage="retrieval", attempt=attempt + 1, error=str(exc))
             if attempt < 2:
-                time.sleep(2**attempt)
+                time.sleep(2 ** attempt)
 
     if candidates is None:
-        logger.error("Vector search failed after 3 attempts, degrading: %s", last_exc)
+        log.warning("retrieval_degraded", stage="retrieval",
+                    retrieval_context_available=False, reason=str(last_exc))
+        emit_pipeline_metric("retrieval_degraded", 1, "Count", {"environment": settings.environment})
         return RetrievalResult(chunks=[], retrieval_context_available=False)
 
     chunk_ids = [c["chunk_id"] for c in candidates]
     chunk_texts = _fetch_chunk_texts(chunk_ids)
 
     if not chunk_texts:
-        logger.warning("No chunk texts found in DynamoDB for retrieved chunk_ids")
+        log.warning("retrieval_degraded", stage="retrieval",
+                    retrieval_context_available=False, reason="no chunk texts found in DynamoDB")
+        emit_pipeline_metric("retrieval_degraded", 1, "Count", {"environment": settings.environment})
         return RetrievalResult(chunks=[], retrieval_context_available=False)
 
     # Rerank with retry; failure → degrade to unreranked top-N
@@ -71,15 +78,23 @@ def run(triage: TriageResult) -> RetrievalResult:
     reranked: list[str] | None = None
     for attempt in range(3):
         try:
-            reranked = bedrock.rerank(settings.rerank_model_id, query, chunk_texts, top_n=top_n)
+            reranked = bedrock.rerank(settings.rerank_model_id, query, chunk_texts, top_n=top_n, trace_name="rerank")
             break
         except Exception as exc:
-            logger.warning("Rerank attempt %d/3 failed: %s", attempt + 1, exc)
+            log.warning("rerank_retry", stage="retrieval", attempt=attempt + 1, error=str(exc))
             if attempt < 2:
-                time.sleep(2**attempt)
+                time.sleep(2 ** attempt)
 
     if reranked is None:
-        logger.warning("Rerank failed after 3 attempts, returning unreranked chunks")
-        return RetrievalResult(chunks=chunk_texts[:_TOP_RESULTS], retrieval_context_available=True)
+        duration_ms = round((time.perf_counter() - t0) * 1000)
+        chunks = chunk_texts[:_TOP_RESULTS]
+        log.info("retrieval_completed", stage="retrieval", duration_ms=duration_ms,
+                 chunks_retrieved=len(chunks), reranked=False)
+        emit_pipeline_metric("retrieval_duration_ms", duration_ms, "Milliseconds", {"environment": settings.environment})
+        return RetrievalResult(chunks=chunks, retrieval_context_available=True)
 
+    duration_ms = round((time.perf_counter() - t0) * 1000)
+    log.info("retrieval_completed", stage="retrieval", duration_ms=duration_ms,
+             chunks_retrieved=len(reranked), reranked=True)
+    emit_pipeline_metric("retrieval_duration_ms", duration_ms, "Milliseconds", {"environment": settings.environment})
     return RetrievalResult(chunks=reranked, retrieval_context_available=True)

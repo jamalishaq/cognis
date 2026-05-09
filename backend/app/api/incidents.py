@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+import structlog
 from typing import Any
 
 from boto3.dynamodb.conditions import Attr
@@ -10,7 +10,7 @@ from app.models.chat import ChatHistoryResponse, ChatMessage
 from app.models.incident import IncidentBrief, IncidentRecord
 from app.services import dynamodb
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 router = APIRouter()
 

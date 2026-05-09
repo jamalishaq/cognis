@@ -6,6 +6,10 @@ python-dotenv
 boto3
 httpx
 mangum
+structlog
+aws-xray-sdk
+langfuse
+aws-embedded-metrics
 pytest
 pytest-asyncio
 moto[dynamodb,sqs,s3]

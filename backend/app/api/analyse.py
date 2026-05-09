@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-import logging
+import time
 from datetime import datetime, timezone
 
+import structlog
 from fastapi import APIRouter, HTTPException
+from structlog.contextvars import bind_contextvars
 
 from app.config import settings
+from app.metrics import emit_pipeline_metric
 from app.models.analyse import AnalyseResponse
 from app.pipeline import agent, judge, retrieval, triage
 from app.services import dynamodb, sqs
 from app.registry.normaliser_registry import normalise
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -21,23 +24,29 @@ def _generate_incident_id() -> str:
     try:
         seq = dynamodb.increment_counter(f"incidents-{today}")
     except Exception as exc:
-        logger.warning("Could not increment incident counter, defaulting to 1: %s", exc)
+        log.warning("incident_counter_failed", error=str(exc))
         seq = 1
     return f"INC-{today}-{seq:03d}"
 
 
 @router.post("/analyse", response_model=AnalyseResponse)
 def analyse(payload: dict) -> AnalyseResponse:
+    t0 = time.perf_counter()
     now = datetime.now(timezone.utc)
 
     # Normalise — generic fallback handles any payload shape; never raises
     alert = normalise(payload)
 
+    # Generate and bind incident_id before any pipeline stage so all Langfuse
+    # traces (triage, embed, rerank, agent, judge) carry the incident_id.
+    incident_id = _generate_incident_id()
+    bind_contextvars(incident_id=incident_id)
+
     # Triage — fail fast: nothing downstream runs without a classification
     try:
         triage_result = triage.run(alert)
     except Exception as exc:
-        logger.error("Triage failed: %s", exc, extra={"stage": "triage"})
+        log.error("triage_failed", stage="triage", error=str(exc))
         raise HTTPException(
             status_code=503,
             detail={
@@ -51,20 +60,12 @@ def analyse(payload: dict) -> AnalyseResponse:
     # RAG retrieval — degrades gracefully on failure (handled inside retrieval.run)
     retrieval_result = retrieval.run(triage_result)
 
-    # Incident ID must be generated before calling the agent so it can embed the ID in the brief
-    incident_id = _generate_incident_id()
-
     # Reasoning agent — fail with 503; triage classification included in error so
     # the caller still knows the service and severity
     try:
         brief = agent.run(alert, triage_result, retrieval_result, incident_id)
     except Exception as exc:
-        logger.error(
-            "Agent failed for %s: %s",
-            incident_id,
-            exc,
-            extra={"stage": "agent", "incident_id": incident_id},
-        )
+        log.error("agent_failed", stage="agent", incident_id=incident_id, error=str(exc))
         raise HTTPException(
             status_code=503,
             detail={
@@ -99,12 +100,7 @@ def analyse(payload: dict) -> AnalyseResponse:
             },
         )
     except Exception as exc:
-        logger.error(
-            "DynamoDB write failed for %s: %s",
-            incident_id,
-            exc,
-            extra={"stage": "storage", "incident_id": incident_id},
-        )
+        log.error("dynamodb_write_failed", stage="storage", incident_id=incident_id, error=str(exc))
 
     # Persist eval scores — separate write so judge failure doesn't affect main record
     if eval_result.eval_ran:
@@ -122,23 +118,15 @@ def analyse(payload: dict) -> AnalyseResponse:
                 },
             )
         except Exception as exc:
-            logger.error(
-                "DynamoDB eval write failed for %s: %s",
-                incident_id,
-                exc,
-                extra={"stage": "eval_storage", "incident_id": incident_id},
-            )
+            log.error("dynamodb_eval_write_failed", stage="eval_storage",
+                      incident_id=incident_id, error=str(exc))
 
     # Drop SQS notification — async fire-and-forget; SQS retries + DLQ handle failures
     try:
         sqs.send_message(settings.notification_queue_url, brief.model_dump(mode="json"))
     except Exception as exc:
-        logger.warning(
-            "SQS notification failed for %s: %s",
-            incident_id,
-            exc,
-            extra={"stage": "notification", "incident_id": incident_id},
-        )
+        log.warning("sqs_notification_failed", stage="notification",
+                    incident_id=incident_id, error=str(exc))
 
     # In local dev the notify Lambda is not running — invoke it directly so
     # notification providers (e.g. SES log mode) are exercised on every /analyse call
@@ -146,6 +134,12 @@ def analyse(payload: dict) -> AnalyseResponse:
         from app.lambdas import notify as _notify_lambda  # noqa: PLC0415
 
         _notify_lambda.handler({"Records": [{"body": brief.model_dump_json()}]}, None)
+
+    total_duration_ms = round((time.perf_counter() - t0) * 1000)
+    log.info("brief_returned", total_duration_ms=total_duration_ms)
+    dims = {"environment": settings.environment, "failure_class": brief.failure_class}
+    emit_pipeline_metric("pipeline_duration_ms", total_duration_ms, "Milliseconds", dims)
+    emit_pipeline_metric("incidents_processed", 1, "Count", dims)
 
     return AnalyseResponse(
         incident_id=brief.incident_id,

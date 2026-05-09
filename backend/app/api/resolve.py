@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+import structlog
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
@@ -9,7 +9,7 @@ from app.config import settings
 from app.models.resolve import ResolveRequest, ResolveResponse
 from app.services import dynamodb, sqs
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -48,7 +48,7 @@ def resolve_incident(incident_id: str, request: ResolveRequest) -> ResolveRespon
     try:
         dynamodb.update_item("Incidents", {"incident_id": incident_id}, updates)
     except Exception as exc:
-        logger.error("DynamoDB update failed for %s: %s", incident_id, exc)
+        log.error("dynamodb_update_failed", incident_id=incident_id, error=str(exc))
         raise HTTPException(
             status_code=503,
             detail={"error": "storage_failed", "message": "Failed to update incident record"},
@@ -68,7 +68,7 @@ def resolve_incident(incident_id: str, request: ResolveRequest) -> ResolveRespon
             },
         )
     except Exception as exc:
-        logger.warning("SQS ingestion message failed for %s: %s", incident_id, exc)
+        log.warning("sqs_ingestion_failed", incident_id=incident_id, error=str(exc))
 
     return ResolveResponse(
         incident_id=incident_id,

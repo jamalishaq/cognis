@@ -1,14 +1,16 @@
 import json
-import logging
 import time
 
+import structlog
+
 from app.config import settings
+from app.metrics import emit_pipeline_metric
 from app.models.alert import NormalisedAlert
 from app.models.triage import TriageResult
 from app.services import bedrock
 from app.utils.json_utils import extract_json
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 
 _SYSTEM_PROMPT = """\
@@ -32,6 +34,7 @@ def run(alert: NormalisedAlert) -> TriageResult:
     )
     messages = [{"role": "user", "content": [{"text": prompt}]}]
 
+    t0 = time.perf_counter()
     last_exc: Exception | None = None
     for attempt in range(3):
         try:
@@ -40,13 +43,23 @@ def run(alert: NormalisedAlert) -> TriageResult:
                 messages=messages,
                 system=_SYSTEM_PROMPT,
                 max_tokens=256,
+                trace_name="triage",
             )
             data = json.loads(extract_json(raw))
-            return TriageResult(**data)
+            result = TriageResult(**data)
+            duration_ms = round((time.perf_counter() - t0) * 1000)
+            log.info("triage_completed", stage="triage", duration_ms=duration_ms,
+                     failure_class=result.failure_class, severity=result.severity)
+            emit_pipeline_metric(
+                "triage_duration_ms", duration_ms, "Milliseconds",
+                {"environment": settings.environment, "failure_class": result.failure_class},
+            )
+            return result
         except Exception as exc:
             last_exc = exc
-            logger.warning("Triage attempt %d/3 failed: %s", attempt + 1, exc)
+            log.warning("triage_retry", stage="triage", attempt=attempt + 1, error=str(exc))
             if attempt < 2:
-                time.sleep(2**attempt)
+                time.sleep(2 ** attempt)
 
-    raise last_exc  
+    log.error("triage_failed", stage="triage", attempts=3, error=str(last_exc))
+    raise last_exc

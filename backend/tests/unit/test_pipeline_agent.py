@@ -84,7 +84,7 @@ def _assistant_multi_tool(calls: list[tuple[str, dict, str]]) -> tuple[dict, str
 # Zero tool calls — model returns brief directly
 # ---------------------------------------------------------------------------
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_zero_tool_calls_returns_brief(mock_converse, mock_sleep):
     mock_converse.return_value = _assistant_text(_brief_json())
@@ -101,7 +101,7 @@ def test_run_zero_tool_calls_returns_brief(mock_converse, mock_sleep):
     mock_sleep.assert_not_called()
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_zero_tool_calls_uses_sonnet_model(mock_converse, mock_sleep):
     mock_converse.return_value = _assistant_text(_brief_json())
@@ -112,7 +112,7 @@ def test_run_zero_tool_calls_uses_sonnet_model(mock_converse, mock_sleep):
     assert "sonnet" in model_id.lower()
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_propagates_retrieval_context_flag(mock_converse, mock_sleep):
     mock_converse.return_value = _assistant_text(_brief_json())
@@ -123,7 +123,7 @@ def test_run_propagates_retrieval_context_flag(mock_converse, mock_sleep):
     assert result.retrieval_context_available is False
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_includes_alert_fields_in_first_message(mock_converse, mock_sleep):
     mock_converse.return_value = _assistant_text(_brief_json())
@@ -137,7 +137,7 @@ def test_run_includes_alert_fields_in_first_message(mock_converse, mock_sleep):
     assert "critical" in user_text
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_includes_runbook_context_when_available(mock_converse, mock_sleep):
     mock_converse.return_value = _assistant_text(_brief_json())
@@ -150,7 +150,7 @@ def test_run_includes_runbook_context_when_available(mock_converse, mock_sleep):
     assert "APP_DB_POOL_MAX" in user_text
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_passes_tool_config_to_bedrock(mock_converse, mock_sleep):
     mock_converse.return_value = _assistant_text(_brief_json())
@@ -169,7 +169,7 @@ def test_run_passes_tool_config_to_bedrock(mock_converse, mock_sleep):
 # Single tool call
 # ---------------------------------------------------------------------------
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_single_tool_call_executes_and_continues(mock_converse, mock_sleep):
     mock_converse.side_effect = [
@@ -184,7 +184,7 @@ def test_run_single_tool_call_executes_and_continues(mock_converse, mock_sleep):
     mock_sleep.assert_not_called()
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_single_tool_call_passes_result_back(mock_converse, mock_sleep):
     mock_converse.side_effect = [
@@ -209,7 +209,7 @@ def test_run_single_tool_call_passes_result_back(mock_converse, mock_sleep):
     assert "error_rate_pct" in metrics
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_get_deployment_history_tool_call(mock_converse, mock_sleep):
     mock_converse.side_effect = [
@@ -233,7 +233,7 @@ def test_run_get_deployment_history_tool_call(mock_converse, mock_sleep):
 # Multi-tool call
 # ---------------------------------------------------------------------------
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_multi_tool_call_executes_all_tools(mock_converse, mock_sleep):
     mock_converse.side_effect = [
@@ -253,7 +253,7 @@ def test_run_multi_tool_call_executes_all_tools(mock_converse, mock_sleep):
     mock_sleep.assert_not_called()
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_multi_tool_returns_both_results(mock_converse, mock_sleep):
     mock_converse.side_effect = [
@@ -280,7 +280,7 @@ def test_run_multi_tool_returns_both_results(mock_converse, mock_sleep):
 # Retry behaviour
 # ---------------------------------------------------------------------------
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_retries_bedrock_on_failure_then_succeeds(mock_converse, mock_sleep):
     mock_converse.side_effect = [
@@ -298,7 +298,7 @@ def test_run_retries_bedrock_on_failure_then_succeeds(mock_converse, mock_sleep)
     mock_sleep.assert_any_call(2)   # 2**1 after attempt 1
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_raises_after_three_bedrock_failures(mock_converse, mock_sleep):
     mock_converse.side_effect = RuntimeError("service unavailable")
@@ -310,7 +310,7 @@ def test_run_raises_after_three_bedrock_failures(mock_converse, mock_sleep):
     assert mock_sleep.call_count == 2
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_raises_last_exception_on_all_failures(mock_converse, mock_sleep):
     mock_converse.side_effect = [
@@ -323,7 +323,7 @@ def test_run_raises_last_exception_on_all_failures(mock_converse, mock_sleep):
         agent.run(_make_alert(), _make_triage(), _make_retrieval(), "INC-20260423-001")
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_no_sleep_after_last_attempt(mock_converse, mock_sleep):
     mock_converse.side_effect = RuntimeError("err")
@@ -335,7 +335,7 @@ def test_run_no_sleep_after_last_attempt(mock_converse, mock_sleep):
     assert sleep_args == [1, 2]
 
 
-@patch("time.sleep")
+@patch("app.pipeline.agent.time.sleep")
 @patch("app.pipeline.agent.bedrock.converse_with_tools")
 def test_run_retries_reset_per_bedrock_call(mock_converse, mock_sleep):
     """Each call in the agent loop gets its own 3-attempt budget."""

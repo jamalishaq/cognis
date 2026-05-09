@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+import structlog
 from collections.abc import Generator
 from datetime import datetime, timezone
 from typing import Any
@@ -14,7 +14,7 @@ from app.models.triage import TriageResult
 from app.pipeline import chat_agent, retrieval
 from app.services import dynamodb
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -74,7 +74,7 @@ def chat(request: ChatRequest) -> StreamingResponse:
     try:
         _store_message(user_msg_id, request.incident_id, "user", request.message, user_ts)
     except Exception as exc:
-        logger.error("Failed to store user message %s: %s", user_msg_id, exc)
+        log.error("store_user_message_failed", message_id=user_msg_id, error=str(exc))
 
     def generate() -> Generator[str, None, None]:
         chunks: list[str] = []
@@ -84,7 +84,7 @@ def chat(request: ChatRequest) -> StreamingResponse:
                 chunks.append(chunk)
                 yield chunk
         except Exception as exc:
-            logger.error("Chat agent failed for %s: %s", request.incident_id, exc)
+            log.error("chat_agent_failed", incident_id=request.incident_id, error=str(exc))
             yield "Unable to process your request, please try again"
             return
 
@@ -100,6 +100,6 @@ def chat(request: ChatRequest) -> StreamingResponse:
                 assistant_ts,
             )
         except Exception as exc:
-            logger.error("Failed to store assistant message %s: %s", assistant_msg_id, exc)
+            log.error("store_assistant_message_failed", message_id=assistant_msg_id, error=str(exc))
 
     return StreamingResponse(generate(), media_type="text/plain")

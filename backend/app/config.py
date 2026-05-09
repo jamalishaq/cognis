@@ -1,4 +1,5 @@
 import boto3
+import structlog
 from functools import lru_cache
 from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -100,7 +101,7 @@ def _load_from_ssm(settings: Settings) -> Settings:
                 overrides[field_name] = param["Value"]
 
         for invalid in response.get("InvalidParameters", []):
-            print(f"[config] WARNING: Parameter not found in SSM: {invalid}")
+            structlog.get_logger().warning("ssm_parameter_not_found", parameter=invalid)
 
     return settings.model_copy(update=overrides)
 
