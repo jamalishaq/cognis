@@ -7,7 +7,7 @@ boto3
 httpx
 mangum
 structlog
-aws-xray-sdk
+aws-xray-sdk[fastapi]
 langfuse
 aws-embedded-metrics
 pytest
