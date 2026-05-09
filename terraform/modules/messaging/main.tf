@@ -118,15 +118,6 @@ resource "aws_iam_role_policy" "notify_lambda" {
         ]
         Resource = "arn:aws:logs:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:log-group:/cognis/${var.environment}/lambda/notify:*"
       },
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:CreateNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DeleteNetworkInterface"
-        ]
-        Resource = "*"
-      }
     ]
   })
 }
@@ -148,11 +139,6 @@ resource "aws_lambda_function" "notify" {
       SES_MODE    = "send"
       SSM_PREFIX  = "/cognis/${var.environment}"
     }
-  }
-
-  vpc_config {
-    subnet_ids         = var.subnet_ids
-    security_group_ids = [var.lambda_security_group_id]
   }
 
   tags = {
@@ -260,11 +246,6 @@ resource "aws_lambda_function" "ingest" {
     variables = {
       ENVIRONMENT = var.environment
     }
-  }
-
-  vpc_config {
-    subnet_ids         = var.subnet_ids
-    security_group_ids = [var.lambda_security_group_id]
   }
 
   tags = {

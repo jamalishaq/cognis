@@ -28,7 +28,14 @@ def _process_record(record: dict[str, Any]) -> None:
         )
         return
 
-    asyncio.run(_send_all(incident))
+    try:
+        asyncio.run(_send_all(incident))
+    except Exception as exc:
+        logger.error(
+            "notify: _send_all raised for incident_id=%s — skipping to avoid infinite requeue: %s",
+            getattr(incident, "incident_id", "?"),
+            exc,
+        )
 
 
 async def _send_all(incident: IncidentBrief) -> None:
