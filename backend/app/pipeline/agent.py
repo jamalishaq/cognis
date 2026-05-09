@@ -365,7 +365,7 @@ def _parse_brief(
     retrieval: RetrievalResult,
 ) -> IncidentBrief:
     text = extract_json(text)
-    if not text:
+    if not text or not text.strip().startswith("{"):
         text = "{}"
     data = json.loads(text)
 

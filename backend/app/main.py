@@ -2,6 +2,7 @@
 # config.py creates an SSM client at module level in non-local environments,
 # so these two lines must stay above all other imports.
 from aws_xray_sdk.core import patch, xray_recorder
+from aws_xray_sdk.ext.fastapi.middleware import XRayMiddleware
 
 patch(["boto3", "botocore"])
 xray_recorder.configure(service="cognis", context_missing="LOG_ERROR")
@@ -29,6 +30,7 @@ _ALLOWED_ORIGINS = {
     "prod": [settings.frontend_origin] if settings.frontend_origin else [],
 }
 
+app.add_middleware(XRayMiddleware, recorder=xray_recorder)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS.get(settings.environment, []),
