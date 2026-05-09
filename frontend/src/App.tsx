@@ -18,7 +18,7 @@ export function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/incidents/:incident_id" element={<IncidentPage />} />
-          <Route path="/" element={<MockAlertPage />} />
+          <Route path="/mock" element={<MockAlertPage />} />
           <Route path="/404" element={<NotFoundPage />} />
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Routes>
