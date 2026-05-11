@@ -221,6 +221,14 @@ resource "aws_iam_role_policy" "ingest_lambda" {
       {
         Effect = "Allow"
         Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ]
+        Resource = "arn:aws:ssm:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:parameter/cognis/${var.environment}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "ec2:CreateNetworkInterface",
           "ec2:DescribeNetworkInterfaces",
           "ec2:DeleteNetworkInterface"
@@ -245,6 +253,7 @@ resource "aws_lambda_function" "ingest" {
   environment {
     variables = {
       ENVIRONMENT = var.environment
+      SSM_PREFIX  = "/cognis/${var.environment}"
     }
   }
 
