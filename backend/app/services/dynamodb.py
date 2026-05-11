@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import boto3
+import structlog
 
 from app.config import settings
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _resource = None
 

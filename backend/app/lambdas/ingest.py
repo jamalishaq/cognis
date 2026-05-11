@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any
 
+import structlog
+
+from app.logger import setup_logging
 from app.config import settings
 from app.models.incident import IncidentRecord
 from app.utils.chunker import chunk_markdown
 from app.services import bedrock, dynamodb, s3vectors
 
-logger = logging.getLogger(__name__)
+setup_logging()
+log = structlog.get_logger()
 
 
 
@@ -24,22 +27,18 @@ def _process_record(record: dict[str, Any]) -> None:
         payload = json.loads(body)
         incident_id = payload["incident_id"]
     except Exception as exc:
-        logger.error(
-            "ingest: failed to parse SQS record — skipping to avoid infinite requeue: %s body=%r",
-            exc,
-            body,
-        )
+        log.error("ingest_parse_failed", error=str(exc), body=body)
         return
 
     item = dynamodb.get_item("Incidents", {"incident_id": incident_id})
     if item is None:
-        logger.error("ingest: incident not found in DynamoDB: %s", incident_id)
+        log.error("ingest_incident_not_found", incident_id=incident_id)
         return
 
     try:
         incident = IncidentRecord.model_validate(item)
     except Exception as exc:
-        logger.error("ingest: failed to parse IncidentRecord for %s: %s", incident_id, exc)
+        log.error("ingest_record_invalid", incident_id=incident_id, error=str(exc))
         return
 
     markdown = _build_markdown(incident)
@@ -52,7 +51,7 @@ def _process_record(record: dict[str, Any]) -> None:
         try:
             vector = bedrock.embed(settings.embedding_model_id, chunk_text, input_type="search_document")
         except Exception as exc:
-            logger.error("ingest: embed failed for %s chunk %d: %s", incident_id, idx, exc)
+            log.error("ingest_embed_failed", incident_id=incident_id, chunk_index=idx, error=str(exc))
             continue
 
         try:
@@ -62,7 +61,7 @@ def _process_record(record: dict[str, Any]) -> None:
                 [{"key": chunk_id, "vector": vector, "metadata": {"incident_id": incident_id, "chunk_index": idx}}],
             )
         except Exception as exc:
-            logger.error("ingest: S3 Vectors upsert failed for %s chunk %d: %s", incident_id, idx, exc)
+            log.error("ingest_s3vectors_failed", incident_id=incident_id, chunk_index=idx, error=str(exc))
             continue
 
         try:
@@ -76,12 +75,12 @@ def _process_record(record: dict[str, Any]) -> None:
                 },
             )
         except Exception as exc:
-            logger.error("ingest: DynamoDB put failed for %s chunk %d: %s", incident_id, idx, exc)
+            log.error("ingest_dynamodb_failed", incident_id=incident_id, chunk_index=idx, error=str(exc))
             continue
 
         ingested += 1
 
-    logger.info("ingest: completed for %s — %d/%d chunks ingested", incident_id, ingested, len(chunks))
+    log.info("ingest_completed", incident_id=incident_id, chunks_ingested=ingested, chunks_total=len(chunks))
 
 
 def _build_markdown(record: IncidentRecord) -> str:

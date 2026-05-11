@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import boto3
+import structlog
 
 from app.config import settings
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _client = None
 
@@ -31,7 +31,7 @@ def upsert_vectors(
     vectors: list[dict[str, Any]],
 ) -> None:
     if settings.s3_vectors_mock:
-        logger.info("S3 Vectors mock mode active — skipping upsert of %d vectors", len(vectors))
+        log.info("s3vectors_mock_upsert_skipped", vector_count=len(vectors))
         return
     client = _get_client()
     client.put_vectors(
@@ -55,7 +55,7 @@ def query_vectors(
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
     if settings.s3_vectors_mock:
-        logger.info("S3 Vectors mock mode active — returning hardcoded chunk_ids")
+        log.info("s3vectors_mock_query")
         return _MOCK_RESULTS[:top_k]
 
     client = _get_client()

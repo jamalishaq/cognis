@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+import structlog
 
 from app.config import settings
 from app.providers.base import NotificationProvider
@@ -8,7 +8,7 @@ from app.providers.notifications.ses import SESProvider
 from app.providers.notifications.slack import SlackProvider
 from app.providers.notifications.teams import TeamsProvider
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _PROVIDER_MAP: dict[str, NotificationProvider] = {
     "ses": SESProvider(),
@@ -22,7 +22,7 @@ def get_active_providers() -> list[NotificationProvider]:
     for name in settings.active_providers_list:
         provider = _PROVIDER_MAP.get(name)
         if provider is None:
-            logger.warning("Unknown notification provider %r — skipping", name)
+            log.warning("notification_registry_unknown_provider", provider=name)
             continue
         providers.append(provider)
     return providers

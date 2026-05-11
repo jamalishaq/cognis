@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import logging
+import structlog
 
 from app.config import settings
 from app.models.incident import IncidentBrief
 from app.providers.base import NotificationProvider
 from app.services import ses as ses_service
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 
 def _compose_subject(incident: IncidentBrief) -> str:
@@ -65,20 +65,19 @@ class SESProvider(NotificationProvider):
         to_addresses = [e.strip() for e in settings.ses_to_emails.split(",") if e.strip()]
 
         if settings.ses_mode == "log":
-            print(f"Subject: {subject}\n")
-            print(f"Body text:\n{body_text}\n")
-            print(f"Body HTML:\n{body_html}\n")
-            logger.info(
-                "SES log mode — would send email: subject=%s to=%s incident_id=%s",
-                subject,
-                to_addresses,
-                incident.incident_id,
+            log.info(
+                "ses_log_mode",
+                subject=subject,
+                to=to_addresses,
+                incident_id=incident.incident_id,
+                body_text=body_text,
+                body_html=body_html,
             )
             return
 
         if not to_addresses:
-            logger.warning("SES provider: no recipient addresses configured, skipping send")
+            log.warning("ses_no_recipients", incident_id=incident.incident_id)
             return
 
         message_id = ses_service.send_email(to_addresses, subject, body_text, body_html)
-        logger.info("SES email sent: message_id=%s incident_id=%s", message_id, incident.incident_id)
+        log.info("ses_email_sent", message_id=message_id, incident_id=incident.incident_id)

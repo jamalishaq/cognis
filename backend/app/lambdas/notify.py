@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from typing import Any
 
+import structlog
+
+from app.logger import setup_logging
 from app.models.incident import IncidentBrief
 from app.registry.notification_registry import get_active_providers
 
-logger = logging.getLogger(__name__)
+setup_logging()
+log = structlog.get_logger()
 
 
 def handler(event: dict[str, Any], context: Any) -> None:
@@ -21,20 +24,20 @@ def _process_record(record: dict[str, Any]) -> None:
     try:
         incident = IncidentBrief.model_validate(json.loads(body))
     except Exception as exc:
-        logger.error(
-            "notify: failed to parse SQS record — skipping to avoid infinite requeue: %s body=%r",
-            exc,
-            body,
+        log.error(
+            "notify_parse_failed",
+            error=str(exc),
+            body=body,
         )
         return
 
     try:
         asyncio.run(_send_all(incident))
     except Exception as exc:
-        logger.error(
-            "notify: _send_all raised for incident_id=%s — skipping to avoid infinite requeue: %s",
-            getattr(incident, "incident_id", "?"),
-            exc,
+        log.error(
+            "notify_send_all_failed",
+            incident_id=getattr(incident, "incident_id", "?"),
+            error=str(exc),
         )
 
 
@@ -43,9 +46,9 @@ async def _send_all(incident: IncidentBrief) -> None:
         try:
             await provider.send(incident)
         except Exception as exc:
-            logger.error(
-                "notify: provider %s failed for incident_id=%s — skipping to avoid infinite requeue: %s",
-                type(provider).__name__,
-                incident.incident_id,
-                exc,
+            log.error(
+                "notify_provider_failed",
+                provider=type(provider).__name__,
+                incident_id=incident.incident_id,
+                error=str(exc),
             )
