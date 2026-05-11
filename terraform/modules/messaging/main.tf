@@ -205,9 +205,13 @@ resource "aws_iam_role_policy" "ingest_lambda" {
         Resource = var.corpus_chunks_table_arn
       },
       {
-        Effect   = "Allow"
-        Action   = "bedrock:InvokeModel"
-        Resource = "arn:aws:bedrock:${data.aws_region.current.id}::foundation-model/cohere.embed-v4:0"
+        Effect = "Allow"
+        Action = "bedrock:InvokeModel"
+        Resource = [
+          "arn:aws:bedrock:${data.aws_region.current.id}::foundation-model/cohere.embed-v4:0",
+          "arn:aws:bedrock:${data.aws_region.current.id}::foundation-model/us.cohere.embed-v4:0",
+          "arn:aws:bedrock:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:inference-profile/us.cohere.embed-v4:0"
+        ]
       },
       {
         Effect   = "Allow"
