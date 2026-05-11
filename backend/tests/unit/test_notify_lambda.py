@@ -148,17 +148,17 @@ def test_failing_provider_does_not_block_subsequent_provider(mock_get_providers,
 
 
 @patch("app.lambdas.notify.get_active_providers")
-def test_provider_failure_logs_error(mock_get_providers, sqs_record, caplog):
-    import logging
+def test_provider_failure_logs_error(mock_get_providers, sqs_record):
+    import structlog.testing
     failing_provider = MagicMock()
     failing_provider.__class__.__name__ = "SESNotificationProvider"
     failing_provider.send = AsyncMock(side_effect=ConnectionError("endpoint unreachable"))
     mock_get_providers.return_value = [failing_provider]
 
-    with caplog.at_level(logging.ERROR, logger="app.lambdas.notify"):
+    with structlog.testing.capture_logs() as logs:
         handler(_make_event(sqs_record), None)
 
-    assert any("SESNotificationProvider" in m for m in caplog.messages)
+    assert any(e.get("event") == "notify_provider_failed" for e in logs)
 
 
 # ---------------------------------------------------------------------------
@@ -186,15 +186,15 @@ def test_invalid_json_body_skips_send(mock_get_providers):
 
 
 @patch("app.lambdas.notify.get_active_providers")
-def test_invalid_json_body_logs_error(mock_get_providers, caplog):
-    import logging
+def test_invalid_json_body_logs_error(mock_get_providers):
+    import structlog.testing
     mock_get_providers.return_value = []
     bad_record = {"body": "not valid json {{{"}
 
-    with caplog.at_level(logging.ERROR, logger="app.lambdas.notify"):
+    with structlog.testing.capture_logs() as logs:
         handler(_make_event(bad_record), None)
 
-    assert len(caplog.records) >= 1
+    assert any(e.get("event") == "notify_parse_failed" for e in logs)
 
 
 @patch("app.lambdas.notify.get_active_providers")

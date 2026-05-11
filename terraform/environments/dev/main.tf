@@ -130,4 +130,3 @@ module "compute" {
   max_capacity                = 1
   enable_autoscaling          = false
 }
-

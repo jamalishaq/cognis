@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, call, patch
 
@@ -247,10 +246,11 @@ def test_missing_incident_id_does_not_raise(mock_get):
 
 
 @patch("app.lambdas.ingest.dynamodb.get_item")
-def test_invalid_json_body_logs_error(mock_get, caplog):
-    with caplog.at_level(logging.ERROR, logger="app.lambdas.ingest"):
+def test_invalid_json_body_logs_error(mock_get):
+    import structlog.testing
+    with structlog.testing.capture_logs() as logs:
         handler(_make_event({"body": "bad json"}), None)
-    assert len(caplog.records) >= 1
+    assert any(e.get("log_level") == "error" and "ingest_parse_failed" in e.get("event", "") for e in logs)
 
 
 # ---------------------------------------------------------------------------
@@ -267,11 +267,12 @@ def test_incident_not_found_does_not_raise(mock_get, mock_embed, sqs_record):
 
 @patch("app.lambdas.ingest.bedrock.embed")
 @patch("app.lambdas.ingest.dynamodb.get_item")
-def test_incident_not_found_logs_error(mock_get, mock_embed, sqs_record, caplog):
+def test_incident_not_found_logs_error(mock_get, mock_embed, sqs_record):
+    import structlog.testing
     mock_get.return_value = None
-    with caplog.at_level(logging.ERROR, logger="app.lambdas.ingest"):
+    with structlog.testing.capture_logs() as logs:
         handler(_make_event(sqs_record), None)
-    assert any("not found" in m for m in caplog.messages)
+    assert any(e.get("event") == "ingest_incident_not_found" for e in logs)
 
 
 # ---------------------------------------------------------------------------
@@ -288,11 +289,12 @@ def test_invalid_incident_record_does_not_raise(mock_get, mock_embed, sqs_record
 
 @patch("app.lambdas.ingest.bedrock.embed")
 @patch("app.lambdas.ingest.dynamodb.get_item")
-def test_invalid_incident_record_logs_error(mock_get, mock_embed, sqs_record, caplog):
+def test_invalid_incident_record_logs_error(mock_get, mock_embed, sqs_record):
+    import structlog.testing
     mock_get.return_value = {"incident_id": "INC-20240101-001", "bad": "data"}
-    with caplog.at_level(logging.ERROR, logger="app.lambdas.ingest"):
+    with structlog.testing.capture_logs() as logs:
         handler(_make_event(sqs_record), None)
-    assert len(caplog.records) >= 1
+    assert any(e.get("event") == "ingest_record_invalid" for e in logs)
 
 
 # ---------------------------------------------------------------------------
@@ -344,13 +346,14 @@ def test_embed_failure_on_first_chunk_does_not_block_second(
 @patch("app.lambdas.ingest.bedrock.embed")
 @patch("app.lambdas.ingest.dynamodb.get_item")
 def test_embed_failure_logs_error(
-    mock_get, mock_embed, mock_upsert, mock_put, sqs_record, dynamo_item, caplog
+    mock_get, mock_embed, mock_upsert, mock_put, sqs_record, dynamo_item
 ):
+    import structlog.testing
     mock_get.return_value = dynamo_item
     mock_embed.side_effect = RuntimeError("Bedrock throttled")
-    with caplog.at_level(logging.ERROR, logger="app.lambdas.ingest"):
+    with structlog.testing.capture_logs() as logs:
         handler(_make_event(sqs_record), None)
-    assert any("embed failed" in m for m in caplog.messages)
+    assert any(e.get("event") == "ingest_embed_failed" for e in logs)
 
 
 # ---------------------------------------------------------------------------
@@ -389,14 +392,15 @@ def test_s3vectors_failure_skips_corpus_put(
 @patch("app.lambdas.ingest.bedrock.embed")
 @patch("app.lambdas.ingest.dynamodb.get_item")
 def test_s3vectors_failure_logs_error(
-    mock_get, mock_embed, mock_upsert, mock_put, sqs_record, dynamo_item, caplog
+    mock_get, mock_embed, mock_upsert, mock_put, sqs_record, dynamo_item
 ):
+    import structlog.testing
     mock_get.return_value = dynamo_item
     mock_embed.return_value = _SAMPLE_VECTOR
     mock_upsert.side_effect = RuntimeError("S3 Vectors unavailable")
-    with caplog.at_level(logging.ERROR, logger="app.lambdas.ingest"):
+    with structlog.testing.capture_logs() as logs:
         handler(_make_event(sqs_record), None)
-    assert any("S3 Vectors upsert failed" in m for m in caplog.messages)
+    assert any(e.get("event") == "ingest_s3vectors_failed" for e in logs)
 
 
 # ---------------------------------------------------------------------------
@@ -421,14 +425,15 @@ def test_dynamodb_put_failure_does_not_raise(
 @patch("app.lambdas.ingest.bedrock.embed")
 @patch("app.lambdas.ingest.dynamodb.get_item")
 def test_dynamodb_put_failure_logs_error(
-    mock_get, mock_embed, mock_upsert, mock_put, sqs_record, dynamo_item, caplog
+    mock_get, mock_embed, mock_upsert, mock_put, sqs_record, dynamo_item
 ):
+    import structlog.testing
     mock_get.return_value = dynamo_item
     mock_embed.return_value = _SAMPLE_VECTOR
     mock_put.side_effect = RuntimeError("DynamoDB write failed")
-    with caplog.at_level(logging.ERROR, logger="app.lambdas.ingest"):
+    with structlog.testing.capture_logs() as logs:
         handler(_make_event(sqs_record), None)
-    assert any("DynamoDB put failed" in m for m in caplog.messages)
+    assert any(e.get("event") == "ingest_dynamodb_failed" for e in logs)
 
 
 # ---------------------------------------------------------------------------
