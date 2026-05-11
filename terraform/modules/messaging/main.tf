@@ -133,6 +133,11 @@ resource "aws_lambda_function" "notify" {
   filename         = data.archive_file.notify.output_path
   source_code_hash = data.archive_file.notify.output_base64sha256
 
+  logging_config {
+    log_group  = "/cognis/${var.environment}/lambda/notify"
+    log_format = "Text"
+  }
+
   environment {
     variables = {
       ENVIRONMENT = var.environment
@@ -249,6 +254,11 @@ resource "aws_lambda_function" "ingest" {
 
   filename         = data.archive_file.ingest.output_path
   source_code_hash = data.archive_file.ingest.output_base64sha256
+
+  logging_config {
+    log_group  = "/cognis/${var.environment}/lambda/ingest"
+    log_format = "Text"
+  }
 
   environment {
     variables = {
